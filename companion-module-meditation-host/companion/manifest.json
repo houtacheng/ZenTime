@@ -1,0 +1,17 @@
+{
+  "id": "sunda-meditation-host",
+  "name": "靜心主持台",
+  "shortname": "靜心主持台",
+  "description": "控制 macOS 與 Windows 靜心主持台 App",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": "local",
+  "bugs": "local",
+  "maintainers": [{ "name": "Sunda" }],
+  "runtime": { "type": "node22", "api": "nodejs-ipc", "apiVersion": "1.11.3", "entrypoint": "../main.js" },
+  "legacyIds": [],
+  "manufacturer": "Sunda",
+  "products": ["Meditation Host"],
+  "keywords": ["meditation", "timer", "靜心"],
+  "isBeta": true
+}

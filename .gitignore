@@ -1,0 +1,14 @@
+.DS_Store
+.build/
+**/node_modules/
+**/dist/
+**/pkg/
+**/.playwright-cli/
+*.dmg
+*.exe
+*.blockmap
+*.zip
+*.tgz
+跨平台版本-*/
+ZenTime-site/downloads/
+docs/downloads/

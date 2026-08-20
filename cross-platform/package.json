@@ -1,0 +1,54 @@
+{
+  "name": "meditation-host-cross-platform",
+  "version": "1.0.9",
+  "description": "靜心主持台跨平台版",
+  "main": "src/main.js",
+  "author": "Sunda",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "pack:mac": "electron-builder --mac dmg",
+    "pack:win": "electron-builder --win nsis portable --x64",
+    "pack:win-arm64": "electron-builder --win nsis portable --arm64",
+    "pack:all": "electron-builder --mac dmg --win nsis portable --x64"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sunda.meditationhost.crossplatform",
+    "productName": "靜心主持台",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.healthcare-fitness",
+      "icon": "resources/icon.png",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "icon": "resources/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
+  }
+}

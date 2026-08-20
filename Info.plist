@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>靜心主持台</string>
+  <key>CFBundleDisplayName</key><string>靜心主持台</string>
+  <key>CFBundleIdentifier</key><string>com.sunda.meditationhost</string>
+  <key>CFBundleVersion</key><string>24</string>
+  <key>CFBundleShortVersionString</key><string>0.9.10</string>
+  <key>CFBundleExecutable</key><string>MeditationHost</string>
+  <key>CFBundleIconFile</key><string>MeditationIconTransparentV5.icns</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>LSApplicationCategoryType</key><string>public.app-category.healthcare-fitness</string>
+</dict></plist>
