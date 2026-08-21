@@ -1,0 +1,15 @@
+services:
+  zentime:
+    build: .
+    container_name: zentime
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PORT: "4747"
+      DATA_DIR: /data
+      WIIM_MAC: "00:22:6c:36:0f:67"
+      WIIM_SCAN_PREFIX: "10.43.50"
+      MEDIA_BASE_URL: "http://10.43.50.145:8088/ZenTime/music/"
+      TZ: Asia/Taipei
+    volumes:
+      - ./data:/data

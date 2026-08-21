@@ -6,7 +6,12 @@ ZenTime 是供靜心活動主持人使用的 macOS／Windows 雙視窗控制 App
 - 最新版本：<https://github.com/houtacheng/ZenTime/releases/latest>
 - 跨平台主程式位於 `cross-platform/`
 - Bitfocus Companion 模組位於 `companion-module-meditation-host/`
+- QNAP／Docker 網頁版位於 `docker-version/`
 - `Sources/` 為早期原生 macOS 版本原始碼
+
+## QNAP Docker 網頁版
+
+`docker-version/` 提供主持台、16:9 參與者畫面、手機控制頁、既有 Companion API，以及 WiiM Pro 播放控制。預設以 MAC `00:22:6c:36:0f:67` 尋找 WiiM，並從 `http://10.43.50.145:8088/ZenTime/music/` 讀取 QNAP 音檔。詳細部署方式請參考 `docker-version/README.md`。
 
 ## 使用方式
 
