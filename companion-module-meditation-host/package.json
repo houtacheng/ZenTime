@@ -1,6 +1,6 @@
 {
   "name": "companion-module-sunda-meditation-host",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "main": "main.js",
   "scripts": { "package": "companion-module-build", "validate": "companion-module-build --validate" },

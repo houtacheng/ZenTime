@@ -3,7 +3,7 @@
   "name": "靜心主持台",
   "shortname": "靜心主持台",
   "description": "控制 macOS 與 Windows 靜心主持台 App",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "license": "MIT",
   "repository": "local",
   "bugs": "local",

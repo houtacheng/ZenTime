@@ -1,6 +1,6 @@
 {
   "name": "meditation-host-cross-platform",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "靜心主持台跨平台版",
   "main": "src/main.js",
   "author": "Sunda",

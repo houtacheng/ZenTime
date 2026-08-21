@@ -1,5 +1,7 @@
 import { InstanceBase, InstanceStatus, combineRgb } from '@companion-module/base'
 
+const SELECTED_DURATION_BORDER = 'iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAYAAABV7bNHAAAAq0lEQVR4nO3QwQmAQBAEwc0/QcM5I5D2dR5YDfMfatY1y543Xx84fYAAAdoPND8NUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFr4EMECBAgM7YDdIh07+6k3VpAAAAAElFTkSuQmCC'
+
 export class MeditationHostInstance extends InstanceBase {
   async init(config) {
     this.config = config
@@ -45,7 +47,7 @@ export class MeditationHostInstance extends InstanceBase {
   updateState(state) {
     this.state = state
     this.setVariableValues({ remaining: state.remainingText, remaining_seconds: state.remaining, state: state.state, selected_minutes: state.selectedMinutes, show_countdown: state.showCountdown ? '顯示':'隱藏', show_clock: state.showClock ? '顯示':'隱藏', show_text: state.showText ? '顯示':'隱藏', always_on_top: state.alwaysOnTop ? '啟用':'取消' })
-    this.checkFeedbacks('running', 'paused', 'show_countdown', 'show_clock', 'show_text', 'always_on_top')
+    this.checkFeedbacks('running', 'paused', 'show_countdown', 'show_clock', 'show_text', 'always_on_top', 'selected_duration')
   }
 
   actions() {
@@ -74,6 +76,13 @@ export class MeditationHostInstance extends InstanceBase {
       show_clock: { name: '目前時間正在顯示', type: 'boolean', defaultStyle: { bgcolor: '#cc2222', color: '#ffffff' }, options: [], callback: () => this.state.showClock === true },
       show_text: { name: '主文字正在顯示', type: 'boolean', defaultStyle: { bgcolor: '#cc2222', color: '#ffffff' }, options: [], callback: () => this.state.showText === true },
       always_on_top: { name: '參與者畫面正在置頂', type: 'boolean', defaultStyle: { bgcolor: '#cc2222', color: '#ffffff' }, options: [], callback: () => this.state.alwaysOnTop === true },
+      selected_duration: {
+        name: '目前選用的倒計時分鐘',
+        type: 'boolean',
+        defaultStyle: { png64: SELECTED_DURATION_BORDER },
+        options: [{ type: 'number', id: 'minutes', label: '分鐘', default: 10, min: 1, max: 999, required: true }],
+        callback: event => this.state.selectedMinutes === Math.round(Number(event.options.minutes)),
+      },
     }
   }
   presets() {
@@ -87,8 +96,8 @@ export class MeditationHostInstance extends InstanceBase {
       toggle_text: { ...button('顯示／隱藏主文字', '文字\n顯示', 'toggle_text'), feedbacks: [{ feedbackId: 'show_text', options: {}, style: { bgcolor: '#cc2222', color: '#ffffff' } }] },
       toggle_always_on_top: { ...button('啟用／取消參與者畫面置頂', '畫面\n置頂', 'toggle_always_on_top'), feedbacks: [{ feedbackId: 'always_on_top', options: {}, style: { bgcolor: '#cc2222', color: '#ffffff' } }] },
     }
-    for (const minutes of [3,5,7,10,15,20]) presets[`duration_${minutes}`] = button(`${minutes} 分鐘`, `${minutes}\n分鐘`, 'duration', { minutes })
-    presets.duration_custom = button('自訂分鐘', '自訂\n分鐘', 'duration', { minutes: 12 })
+    for (const minutes of [3,5,7,10,15,20]) presets[`duration_${minutes}`] = { ...button(`${minutes} 分鐘`, `${minutes}\n分鐘`, 'duration', { minutes }), feedbacks: [{ feedbackId: 'selected_duration', options: { minutes }, style: { png64: SELECTED_DURATION_BORDER } }] }
+    presets.duration_custom = { ...button('自訂分鐘', '自訂\n分鐘', 'duration', { minutes: 12 }), feedbacks: [{ feedbackId: 'selected_duration', options: { minutes: 12 }, style: { png64: SELECTED_DURATION_BORDER } }] }
     return presets
   }
 }
