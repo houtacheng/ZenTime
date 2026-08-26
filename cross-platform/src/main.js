@@ -241,7 +241,7 @@ function createWindows() {
   const work = screen.getPrimaryDisplay().workArea
   hostWindow = new BrowserWindow({ width: 410, height: Math.min(860, work.height), x: work.x + work.width - 430, y: work.y + 20, title: '靜心主持台', webPreferences: { preload: path.join(__dirname, 'preload.js') } })
   const pw = Math.min(work.width - 470, (work.height - 80) * 16 / 9), ph = pw * 9 / 16
-  participantWindow = new BrowserWindow({ width: Math.round(pw), height: Math.round(ph), x: work.x + 20, y: Math.round(work.y + (work.height - ph) / 2), frame: false, title: '靜心參與者畫面', backgroundColor: '#000000', webPreferences: { preload: path.join(__dirname, 'preload.js') } })
+  participantWindow = new BrowserWindow({ width: Math.round(pw), height: Math.round(ph), x: work.x + 20, y: Math.round(work.y + (work.height - ph) / 2), frame: false, resizable: false, maximizable: false, fullscreenable: true, title: '靜心參與者畫面', backgroundColor: '#000000', webPreferences: { preload: path.join(__dirname, 'preload.js') } })
   const createReminder = (mode, title, bounds) => {
     const win = new BrowserWindow({ ...bounds, show: false, frame: false, transparent: true, backgroundColor: '#00000000', alwaysOnTop: true, hasShadow: false, resizable: true, minWidth: 280, minHeight: 120, maxWidth: work.width, maxHeight: work.height, title, webPreferences: { preload: path.join(__dirname, 'reminder-preload.js') } })
     win.loadURL(`http://127.0.0.1:4747/reminder?mode=${mode}`)
@@ -460,7 +460,8 @@ ipcMain.on('participant:window-drag', (_e, _point, phase) => {
     const x = Math.round(windowDragSnapshot.bounds.x + cursor.x - windowDragSnapshot.point.x)
     const y = Math.round(windowDragSnapshot.bounds.y + cursor.y - windowDragSnapshot.point.y)
     if (Number.isSafeInteger(x) && Number.isSafeInteger(y) && Math.abs(x) < 2147483647 && Math.abs(y) < 2147483647) {
-      try { participantWindow.setPosition(x, y, false) } catch (error) { console.warn('Ignored invalid participant window position:', x, y, error.message) }
+      const width = windowDragSnapshot.bounds.width, height = windowDragSnapshot.bounds.height
+      try { participantWindow.setBounds({ x, y, width, height }, false) } catch (error) { console.warn('Ignored invalid participant window bounds:', x, y, width, height, error.message) }
     }
   }
   else if (phase === 'end') windowDragSnapshot = null
