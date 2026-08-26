@@ -14,8 +14,10 @@ function paint(s){const previous=state;state=s;applyLiveAudioSettings(previous,s
 setInterval(()=>{if(state&&state.showClock)$('clock').textContent=clockText()},500)
 for(const [id,target] of [['clock','clock'],['text','text'],['countdown','countdown']]){$(id).addEventListener('pointerdown',e=>{e.preventDefault();drag={target};stage.classList.add('dragging');$(id).setPointerCapture(e.pointerId);meditation.dragPosition(target,null,'begin')});$(id).addEventListener('pointermove',e=>{if(!drag||drag.target!==target)return;let x=e.clientX/stage.clientWidth,y=1-e.clientY/stage.clientHeight;for(const n of [.25,.5,.75]){if(Math.abs(x-n)<.012)x=n;if(Math.abs(y-n)<.02)y=n}meditation.dragPosition(target,{x:Math.max(.03,Math.min(.97,x)),y:Math.max(.05,Math.min(.95,y))},'move')});$(id).addEventListener('pointerup',()=>{if(!drag)return;drag=null;stage.classList.remove('dragging');meditation.dragPosition(target,null,'end')})}
 let backgroundDrag
-stage.addEventListener('pointerdown',e=>{if(e.button!==0||e.target!==stage)return;backgroundDrag=e.pointerId;stage.setPointerCapture(e.pointerId);meditation.dragParticipantWindow({x:e.screenX,y:e.screenY},'begin')})
-stage.addEventListener('pointermove',e=>{if(backgroundDrag!==e.pointerId)return;meditation.dragParticipantWindow({x:e.screenX,y:e.screenY},'move')})
-stage.addEventListener('pointerup',e=>{if(backgroundDrag!==e.pointerId)return;backgroundDrag=null;meditation.dragParticipantWindow({x:e.screenX,y:e.screenY},'end')})
+stage.addEventListener('pointerdown',e=>{if(e.button!==0||e.target!==stage)return;backgroundDrag=e.pointerId;stage.setPointerCapture(e.pointerId);meditation.dragParticipantWindow(null,'begin')})
+stage.addEventListener('pointermove',e=>{if(backgroundDrag!==e.pointerId)return;meditation.dragParticipantWindow(null,'move')})
+const endBackgroundDrag=e=>{if(backgroundDrag!==e.pointerId)return;backgroundDrag=null;meditation.dragParticipantWindow(null,'end')}
+stage.addEventListener('pointerup',endBackgroundDrag)
+stage.addEventListener('pointercancel',endBackgroundDrag)
 stage.addEventListener('dblclick',e=>{e.preventDefault();meditation.toggleParticipantFullscreen()})
 meditation.onState(s=>{paint(s);applyFonts(s)});meditation.getState().then(s=>{paint(s);applyFonts(s)})
