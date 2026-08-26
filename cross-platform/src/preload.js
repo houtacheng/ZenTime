@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('meditation', {
   onState: callback => ipcRenderer.on('state', (_event, state) => callback(state)),
   dragPosition: (target, position, phase) => ipcRenderer.send('position:drag', target, position, phase),
   dragParticipantWindow: (point, phase) => ipcRenderer.send('participant:window-drag', point, phase),
+  resizeParticipantWindow: (edge, phase) => ipcRenderer.send('participant:window-resize', edge, null, phase),
   toggleParticipantFullscreen: () => ipcRenderer.send('participant:toggle-fullscreen'),
 })

@@ -40,7 +40,7 @@ const state = {
   },
 }
 let dragSnapshot = null
-let windowDragSnapshot = null
+let windowDragSnapshot = null, windowResizeSnapshot = null
 const reminderDragSnapshots = new Map()
 const reminderResizeSnapshots = new Map()
 let fontCache = null
@@ -466,6 +466,31 @@ ipcMain.on('participant:window-drag', (_e, _point, phase) => {
   }
   else if (phase === 'end') windowDragSnapshot = null
 })
+ipcMain.on('participant:window-resize', (_event, edge, _point, phase) => {
+  const cursor = screen.getCursorScreenPoint()
+  const validPoint = cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)
+  if (phase === 'begin' && validPoint && participantWindow) {
+    windowResizeSnapshot = { point: cursor, bounds: participantWindow.getBounds(), edge: String(edge || '') }
+    return
+  }
+  if (phase === 'end') { windowResizeSnapshot = null; return }
+  if (phase !== 'move' || !validPoint || !windowResizeSnapshot || !participantWindow) return
+  const drag = windowResizeSnapshot, dx = cursor.x - drag.point.x, dy = cursor.y - drag.point.y
+  let left = drag.bounds.x, top = drag.bounds.y, right = left + drag.bounds.width, bottom = top + drag.bounds.height
+  if (drag.edge.includes('w')) left += dx
+  if (drag.edge.includes('e')) right += dx
+  if (drag.edge.includes('n')) top += dy
+  if (drag.edge.includes('s')) bottom += dy
+  const work = screen.getDisplayMatching(drag.bounds).workArea
+  const minWidth = 480, minHeight = 270
+  if (right - left < minWidth) drag.edge.includes('w') ? left = right - minWidth : right = left + minWidth
+  if (bottom - top < minHeight) drag.edge.includes('n') ? top = bottom - minHeight : bottom = top + minHeight
+  left = Math.max(work.x, left); top = Math.max(work.y, top)
+  right = Math.min(work.x + work.width, right); bottom = Math.min(work.y + work.height, bottom)
+  const bounds = { x: Math.round(left), y: Math.round(top), width: Math.round(right - left), height: Math.round(bottom - top) }
+  if (bounds.width < minWidth || bounds.height < minHeight) return
+  try { participantWindow.setBounds(bounds, false) } catch (error) { console.warn('Ignored invalid participant resize:', bounds, error.message) }
+})
 ipcMain.on('participant:toggle-fullscreen', () => participantWindow?.setFullScreen(!participantWindow.isFullScreen()))
 ipcMain.on('reminder:window-drag', (event, point, phase) => {
   const win = BrowserWindow.fromWebContents(event.sender), key = event.sender.id
@@ -478,7 +503,8 @@ ipcMain.on('reminder:window-drag', (event, point, phase) => {
     const x = Math.round(drag.bounds.x + cursor.x - drag.point.x)
     const y = Math.round(drag.bounds.y + cursor.y - drag.point.y)
     if (Number.isSafeInteger(x) && Number.isSafeInteger(y) && Math.abs(x) < 2147483647 && Math.abs(y) < 2147483647) {
-      try { win.setPosition(x, y, false) } catch (error) { console.warn('Ignored invalid reminder window position:', x, y, error.message) }
+      const width = drag.bounds.width, height = drag.bounds.height
+      try { win.setBounds({ x, y, width, height }, false) } catch (error) { console.warn('Ignored invalid reminder window bounds:', x, y, width, height, error.message) }
     }
   }
   else if (phase === 'end') reminderDragSnapshots.delete(key)
