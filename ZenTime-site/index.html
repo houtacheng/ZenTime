@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ZenTime 靜心主持台｜讓每一次帶領，都從容而專注</title>
-  <meta name="description" content="為靜心主持人設計的跨平台計時與投影工具。雙視窗、聲音、倒數進度、網頁與 Companion 遙控，一個 App 完成現場帶領。">
+  <meta name="description" content="為靜心主持人設計的跨平台計時、投影與時間提醒工具。雙視窗、聲音、四種浮動提醒、網頁與 Companion 遙控，一個 App 完成現場帶領。">
   <meta name="theme-color" content="#0b1712">
   <meta property="og:title" content="ZenTime 靜心主持台">
   <meta property="og:description" content="把計時、畫面與聲音交給 ZenTime，把注意力留給現場。">
   <meta property="og:image" content="https://emotion.theoakhouse.org/ZenTime/assets/participant.png">
   <link rel="icon" href="assets/icon.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260824-cards3">
 </head>
 <body>
   <header class="nav">
     <a class="brand" href="#top"><img src="assets/icon.png" alt=""><span>ZenTime</span><small>靜心主持台</small></a>
-    <nav><a href="#features">功能</a><a href="#screens">實際畫面</a><a href="#download" class="nav-cta">免費下載</a></nav>
+    <nav><a href="#features">功能</a><a href="#reminders">時間提醒</a><a href="#screens">實際畫面</a><a href="https://github.com/houtacheng/ZenTime" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="#download" class="nav-cta">免費下載</a></nav>
   </header>
 
   <main id="top">
@@ -24,7 +24,7 @@
         <p class="eyebrow">為帶領者而生的靜心工具</p>
         <h1>少一點操作，<br><em>多一點在場。</em></h1>
         <p class="lead">把計時、畫面、音樂與磬聲交給 ZenTime。你只需要專注在呼吸、語氣，以及眼前的人。</p>
-        <div class="hero-actions"><a class="button primary" href="#download">下載最新版 <span>1.0.10</span></a><a class="button ghost" href="#screens">看看實際畫面</a></div>
+        <div class="hero-actions"><a class="button primary" href="#download">下載最新版 <span>1.2.5</span></a><a class="button ghost" href="#screens">看看實際畫面</a></div>
         <p class="platforms">支援 macOS Apple Silicon、Intel 與 Windows 10／11</p>
       </div>
       <div class="hero-visual reveal">
@@ -47,6 +47,58 @@
         <article class="feature reveal"><b>04</b><h3>在任何位置都能控制</h3><p>透過網頁、macOS 選單列、Windows 系統匣或 Bitfocus Companion，開始、暫停與切換顯示都不必回到控制台。</p></article>
         <article class="feature reveal"><b>05</b><h3>你的空間，你的氛圍</h3><p>自訂背景顏色、漸層或圖片；主文字、倒數與目前時間可分別選擇電腦中的本機字體。</p></article>
         <article class="feature reveal"><b>06</b><h3>第二螢幕，一秒就緒</h3><p>把參與者視窗移到投影螢幕，連按兩下立即全螢幕；再次連按兩下，回到原本位置與大小。</p></article>
+        <article class="feature reveal"><b>07</b><h3>四種彼此獨立的時間提醒</h3><p>定時、臨時文字、橫直式跑馬燈與 PNG 圖片各自使用浮動視窗。支援淡入淡出、動畫、本機字體、向外描邊與即時預覽。</p></article>
+        <article class="feature reveal"><b>08</b><h3>提醒也能遠端完整操作</h3><p>同一個網頁控制頁可操作靜心與完整提醒設定；macOS 選單列、Windows 系統匣與 Companion 也能開始、暫停、觸發或隱藏提醒。</p></article>
+      </div>
+    </section>
+
+    <section id="reminders" class="section reminder-feature">
+      <div class="wrap">
+        <div class="reminder-intro reveal">
+          <div><p class="eyebrow">TIME REMINDER</p><h2>專心帶領。<br><em>時間交給 ZenTime。</em></h2></div>
+          <p>它不是另一個倒數計時器，而是一套獨立的現場提示系統。提醒在需要前自然淡入、到點清楚出現，再安靜退場；你不必打斷流程，也不必反覆查看時間。</p>
+        </div>
+
+        <div class="reminder-hero reminder-hero-single reveal">
+          <div class="reminder-canvas">
+            <div class="canvas-chrome"><i></i><i></i><i></i><span>提醒顯示畫面</span></div>
+            <div class="canvas-message"><small>SESSION UPDATE</small><strong>已進行 <b>45</b> 分鐘</strong><span>提醒會在畫面上方自然淡入</span></div>
+            <div class="canvas-timeline"><span>淡入</span><i></i><b>到點提醒</b><i></i><span>淡出</span></div>
+            <p>效果示意</p>
+          </div>
+        </div>
+
+        <div class="reminder-flow reveal">
+          <div><b>01</b><span>平時</span><strong>畫面保持透明</strong><p>浮動視窗置頂但不干擾內容，需要時才出現。</p></div>
+          <i>→</i>
+          <div><b>02</b><span>接近時間</span><strong>提醒慢慢淡入</strong><p>提前進場，主持人不會被突然跳出的畫面打斷。</p></div>
+          <i>→</i>
+          <div><b>03</b><span>準時到點</span><strong>播放提示效果</strong><p>閃爍、放大或全螢幕半透明色彩，強度由你決定。</p></div>
+          <i>→</i>
+          <div><b>04</b><span>提示結束</span><strong>安靜淡出</strong><p>現場畫面回到原狀，下一個間隔繼續自動計時。</p></div>
+        </div>
+
+        <div class="reminder-gallery-head reveal"><div><p class="eyebrow">四個獨立提醒視窗</p><h3>四種提醒，一眼掌握。</h3></div><p>各自啟用、各自設定，也能同時使用。</p></div>
+        <div class="reminder-gallery">
+          <article class="reminder-shot-card reveal">
+            <div class="reminder-shot timed-shot"><img src="assets/reminder-timed.png" alt="定時提醒控制台實際畫面"></div>
+            <div class="reminder-shot-copy"><b>01</b><div><h3>定時提醒</h3><span>固定間隔或綁定靜心倒數。</span></div></div>
+          </article>
+          <article class="reminder-shot-card reveal">
+            <div class="reminder-shot"><img src="assets/reminder-temporary.png" alt="臨時文字提醒控制台實際畫面"></div>
+            <div class="reminder-shot-copy"><b>02</b><div><h3>臨時提醒</h3><span>常用訊息一鍵顯示。</span></div></div>
+          </article>
+          <article class="reminder-shot-card reveal">
+            <div class="reminder-shot"><img src="assets/reminder-marquee.png" alt="跑馬燈提醒控制台實際畫面"></div>
+            <div class="reminder-shot-copy"><b>03</b><div><h3>跑馬燈提醒</h3><span>橫直排列與四種移動方向。</span></div></div>
+          </article>
+          <article class="reminder-shot-card reveal">
+            <div class="reminder-shot"><img src="assets/reminder-image.png" alt="PNG 圖片提醒控制台實際畫面"></div>
+            <div class="reminder-shot-copy"><b>04</b><div><h3>PNG 圖片提醒</h3><span>圖片、標誌與方向指示。</span></div></div>
+          </article>
+        </div>
+
+        <div class="reminder-remote reveal"><div><p class="eyebrow">跨平台支持：</p><h3>WEB版、macOS、Windows、Companion 控制</h3></div><p>開始、暫停、立即提醒與取消顯示，都能在你慣用的平台完成。</p><div class="remote-pills"><b>WEB版</b><b>macOS</b><b>Windows</b><b>Companion</b></div></div>
       </div>
     </section>
 
@@ -75,14 +127,15 @@
     </section>
 
     <section id="download" class="section download wrap">
-      <div class="section-head centered reveal"><p class="eyebrow">下載 ZenTime 1.0.10</p><h2>下一場靜心，從容開始。</h2><p>選擇你的電腦版本。下載後即可使用，不需建立帳號。</p></div>
+      <div class="section-head centered reveal"><p class="eyebrow">下載 ZenTime</p><h2>下一場靜心，從容開始。</h2><p>選擇你的電腦版本。下載後即可使用，不需建立帳號。</p></div>
       <div class="download-grid">
-        <article class="download-card reveal"><div class="os"></div><p class="tag">macOS</p><h3>Apple Silicon</h3><p>適用 M1、M2、M3、M4 與後續 Apple 晶片 Mac。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.0.10/ZenTime-macOS-Apple-Silicon-1.0.10.dmg">下載 DMG <small>112 MB</small></a></article>
-        <article class="download-card reveal"><div class="os"></div><p class="tag">macOS</p><h3>Intel</h3><p>適用搭載 Intel 處理器的 Mac 電腦。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.0.10/ZenTime-macOS-Intel-1.0.10.dmg">下載 DMG <small>116 MB</small></a></article>
-        <article class="download-card reveal"><div class="os windows">⊞</div><p class="tag">Windows 10／11</p><h3>安裝版</h3><p>建議一般使用者選擇，安裝後從開始選單開啟。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.0.10/ZenTime-Windows-x64-Setup-1.0.10.exe">下載 EXE <small>90 MB</small></a></article>
-        <article class="download-card reveal"><div class="os windows">⊞</div><p class="tag">Windows 10／11</p><h3>免安裝版</h3><p>直接開啟即可使用，適合放在隨身碟攜帶。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.0.10/ZenTime-Windows-x64-Portable-1.0.10.exe">下載 EXE <small>89 MB</small></a></article>
+        <article class="download-card reveal"><div class="os"></div><p class="tag">macOS</p><h3>Apple Silicon</h3><p>適用 M1、M2、M3、M4 與後續 Apple 晶片 Mac。</p><a class="button primary full" href="downloads/ZenTime-macOS-Apple-Silicon-1.2.0.dmg">下載 DMG</a></article>
+        <article class="download-card reveal"><div class="os"></div><p class="tag">macOS</p><h3>Intel</h3><p>適用搭載 Intel 處理器的 Mac 電腦。</p><a class="button primary full" href="downloads/ZenTime-macOS-Intel-1.2.0.dmg">下載 DMG</a></article>
+        <article class="download-card reveal"><div class="os windows">⊞</div><p class="tag">Windows 10／11 · 1.2.5</p><h3>安裝版</h3><p>建議一般使用者選擇，安裝後從開始選單開啟。</p><a class="button primary full" href="downloads/ZenTime-Windows-x64-Setup-1.2.5.exe">下載 EXE</a></article>
+        <article class="download-card reveal"><div class="os windows">⊞</div><p class="tag">Windows 10／11 · 1.2.5</p><h3>免安裝版</h3><p>直接開啟即可使用，適合放在隨身碟攜帶。</p><a class="button primary full" href="downloads/ZenTime-Windows-x64-Portable-1.2.5.exe">下載 EXE</a></article>
+        <article class="download-card reveal"><div class="os">▣</div><p class="tag">Docker／NAS</p><h3>網頁版</h3><p>用瀏覽器開啟主持台、參與者畫面與完整時間提醒控制，並支援 Companion API。</p><a class="button primary full" href="downloads/ZenTime-Docker-1.2.0.tar.gz">下載 Docker 套件</a></article>
       </div>
-      <div class="companion reveal"><div><p class="eyebrow">進階現場控制</p><h3>Bitfocus Companion 模組</h3><p>把開始、暫停、時間預設、顯示切換與畫面置頂放到 Stream Deck。0.3.3 會以黃色框標示目前選用的時間。</p></div><a class="button ghost" href="https://github.com/houtacheng/ZenTime/releases/download/v1.0.10/ZenTime-Companion-0.3.3.tgz">下載 Companion 模組</a></div>
+      <div class="companion reveal"><div><p class="eyebrow">進階現場控制</p><h3>Bitfocus Companion 模組</h3><p>0.6.1 修正動態倒數與提醒時間的變數參照，按鈕可正常即時顯示。跑馬燈按鈕會在顯示時呈現紅底白字，再按一次即可取消。</p></div><a class="button ghost" href="downloads/ZenTime-Companion-0.6.1.tgz">下載 Companion 模組</a></div>
       <div class="mac-help reveal">
         <p class="eyebrow">macOS 首次開啟方式</p>
         <h3>若出現「已損毀，無法打開」</h3>
@@ -98,7 +151,7 @@
     </section>
   </main>
 
-  <footer><div class="wrap"><div class="brand"><img src="assets/icon.png" alt=""><span>ZenTime</span></div><p>讓科技退到後面，讓帶領回到當下。</p><a href="#top">回到頂端 ↑</a></div></footer>
+  <footer><div class="wrap"><div class="brand"><img src="assets/icon.png" alt=""><span>ZenTime</span></div><p>讓科技退到後面，讓帶領回到當下。</p><a href="https://github.com/houtacheng/ZenTime" target="_blank" rel="noopener noreferrer">GitHub 專案 ↗</a><a href="#top">回到頂端 ↑</a></div></footer>
   <script src="script.js"></script>
 </body>
 </html>
