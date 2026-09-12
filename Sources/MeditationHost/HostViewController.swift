@@ -13,6 +13,7 @@ final class HostViewController: NSViewController {
     private let silentCheck = NSButton(checkboxWithTitle: "無聲模式（略過所有聲音）", target: nil, action: nil)
     private let countdownCheck = NSButton(checkboxWithTitle: "參與者畫面顯示倒數", target: nil, action: nil)
     private let alwaysOnTopCheck = NSButton(checkboxWithTitle: "參與者視窗永遠顯示在最上層", target: nil, action: nil)
+    private let participantVisibilityButton = NSButton(title: "隱藏參與者畫面", target: nil, action: nil)
     private var durationButtons: [NSButton] = []
     private var volumeLabels: [ObjectIdentifier: NSTextField] = [:]
     private var fontNamesByDisplay: [String:String] = [:]
@@ -106,6 +107,7 @@ final class HostViewController: NSViewController {
         musicCheck.target = self; musicCheck.action = #selector(musicToggled(_:)); root.addArrangedSubview(musicCheck)
 
         root.addArrangedSubview(sectionLabel("參與者視窗"))
+        participantVisibilityButton.target=self; participantVisibilityButton.action=#selector(toggleParticipantVisibility); root.addArrangedSubview(participantVisibilityButton)
         countdownCheck.target = self; countdownCheck.action = #selector(countdownToggled(_:)); root.addArrangedSubview(countdownCheck)
         let countdownFont=NSPopUpButton(); countdownFont.addItems(withTitles:fontNamesByDisplay.keys.sorted{$0.localizedStandardCompare($1) == .orderedAscending}); let countdownDisplay=NSFont(name:model.countdownFontName,size:14)?.displayName ?? ""; if countdownFont.itemTitles.contains(countdownDisplay) { countdownFont.selectItem(withTitle:countdownDisplay) } else if let fallback=countdownFont.itemTitles.first { countdownFont.selectItem(withTitle:fallback); model.countdownFontName=fontNamesByDisplay[fallback] ?? model.countdownFontName }; countdownFont.target=self; countdownFont.action=#selector(countdownFontChanged(_:)); let countdownFontRow=NSStackView(); countdownFontRow.orientation = .horizontal; countdownFontRow.addArrangedSubview(NSTextField(labelWithString:"倒數字體")); countdownFontRow.addArrangedSubview(countdownFont); root.addArrangedSubview(countdownFontRow)
         let progressStyle=NSPopUpButton(); progressStyle.addItems(withTitles:["圓環進度","直線進度"]); progressStyle.target=self; progressStyle.action=#selector(progressStyleChanged(_:)); root.addArrangedSubview(progressStyle)
@@ -223,6 +225,7 @@ final class HostViewController: NSViewController {
     @objc private func countdownFontChanged(_ sender:NSPopUpButton) { if let display=sender.titleOfSelectedItem, let name=fontNamesByDisplay[display] { model.countdownFontName=name } }
     @objc private func customDurationChanged(_ sender:NSTextField) { let minutes=min(max(sender.integerValue,1),999); sender.integerValue=minutes; durationButtons.forEach{$0.state = .off}; model.selectedMinutes=minutes }
     @objc private func countdownToggled(_ sender: NSButton) { model.showCountdown = sender.state == .on }
+    @objc private func toggleParticipantVisibility() { (NSApp.delegate as? AppDelegate)?.toggleParticipantVisibility(); refreshState() }
     @objc private func countdownSizeChanged(_ sender: NSSlider) { model.countdownFontSize = CGFloat(sender.doubleValue); updateSliderLabel(sender, suffix:" pt") }
     @objc private func progressSizeChanged(_ sender: NSSlider) { model.countdownProgressSize = CGFloat(sender.doubleValue / 100); (sender.superview as? NSStackView)?.arrangedSubviews.compactMap{$0 as? NSTextField}.first(where:{$0.tag==901})?.stringValue="\(Int(sender.doubleValue.rounded()))%" }
     @objc private func alwaysOnTopToggled(_ sender: NSButton) { model.alwaysOnTop = sender.state == .on }
@@ -256,6 +259,7 @@ final class HostViewController: NSViewController {
         refreshState()
     }
     private func refreshState() {
+        participantVisibilityButton.title = ((NSApp.delegate as? AppDelegate)?.participantIsVisible ?? true) ? "隱藏參與者畫面" : "顯示參與者畫面"
         switch model.state {
         case .ready: startButton.title = "開始"; statusLabel.stringValue = "準備完成，尚未開始"
         case .running: startButton.title = "進行中"; statusLabel.stringValue = "靜心進行中"

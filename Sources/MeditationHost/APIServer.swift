@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import AppKit
 
 final class APIServer {
     static let port: UInt16 = 4747
@@ -49,6 +50,7 @@ final class APIServer {
             case "/api/toggle": model.state == .running ? model.pause() : model.startOrResume()
             case "/api/reset": model.reset()
             case "/api/finish": model.finishEarly()
+            case "/api/toggle-participant": (NSApp.delegate as? AppDelegate)?.toggleParticipantVisibility()
             case "/api/duration":
                 guard let value=query["minutes"], let minutes=Int(value), (1...999).contains(minutes), model.state != .running else { completion(400,self.json(["error":"minutes must be 1...999 and session must not be running"])); return }
                 model.selectedMinutes=minutes
@@ -62,7 +64,7 @@ final class APIServer {
         let model=AppModel.shared
         let state:String
         switch model.state { case .ready:state="ready"; case .running:state="running"; case .paused:state="paused"; case .finished:state="finished" }
-        return json(["state":state,"remaining":model.remainingSeconds,"remainingText":model.formattedRemaining,"selectedMinutes":model.selectedMinutes,"showCountdown":model.showCountdown])
+        return json(["state":state,"remaining":model.remainingSeconds,"remainingText":model.formattedRemaining,"selectedMinutes":model.selectedMinutes,"showCountdown":model.showCountdown,"participantVisible":(NSApp.delegate as? AppDelegate)?.participantIsVisible ?? true])
     }
 
     private func json(_ object:[String:Any])->String { let data=try? JSONSerialization.data(withJSONObject:object,options:[]); return String(data:data ?? Data("{}".utf8),encoding:.utf8) ?? "{}" }

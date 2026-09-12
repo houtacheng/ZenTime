@@ -21,7 +21,7 @@ const state = {
   showCountdown: false, countdownFont: '系統預設字體', countdownSize: 60, countdownPosition: { x: .5, y: .25 },
   progressStyle: 'ring', progressSize: 25, progressStart: '#32d05b', progressEnd: '#e3c767',
   background: '#000000', background2: '#123326', gradient: false, backgroundImage: '',
-  alwaysOnTop: false, silent: false, musicEnabled: false,
+  participantVisible: true, alwaysOnTop: false, silent: false, musicEnabled: false,
   opening: { file: '', volume: 30, fadeIn: true, fadeOut: true },
   music: { file: '', files: [], mode: 'single', volume: 30, fadeIn: true, fadeOut: true },
   closing: { file: '', volume: 30, fadeIn: true, fadeOut: true },
@@ -165,6 +165,7 @@ function broadcast() {
   if (trayVisibilityItems.clock) trayVisibilityItems.clock.checked = state.showClock
   if (trayVisibilityItems.text) trayVisibilityItems.text.checked = state.showText
   if (trayVisibilityItems.alwaysOnTop) trayVisibilityItems.alwaysOnTop.checked = state.alwaysOnTop
+  if (trayVisibilityItems.participant) trayVisibilityItems.participant.label = state.participantVisible ? '隱藏參與者畫面' : '顯示參與者畫面'
   if (trayVisibilityItems.reminderTimed) trayVisibilityItems.reminderTimed.checked = state.reminder.timedEnabled
   if (trayVisibilityItems.reminderTemporary) trayVisibilityItems.reminderTemporary.checked = state.reminder.temporaryEnabled
   if (trayVisibilityItems.reminderMarquee) trayVisibilityItems.reminderMarquee.checked = state.reminder.marqueeEnabled
@@ -231,6 +232,12 @@ function execute(name, value) {
   else if (name === 'toggleCountdown') { state.showCountdown = !state.showCountdown; broadcast() }
   else if (name === 'toggleClock') { state.showClock = !state.showClock; broadcast() }
   else if (name === 'toggleText') { state.showText = !state.showText; broadcast() }
+  else if (name === 'toggleParticipant') {
+    state.participantVisible = !state.participantVisible
+    if (state.participantVisible) participantWindow?.show()
+    else participantWindow?.hide()
+    broadcast()
+  }
   else if (name === 'toggleAlwaysOnTop') { state.alwaysOnTop = !state.alwaysOnTop; participantWindow?.setAlwaysOnTop(state.alwaysOnTop); broadcast() }
   else if (name === 'showReminderControl') showReminderControl()
   else if (name === 'set') { Object.assign(state, value); if ('alwaysOnTop' in value) participantWindow?.setAlwaysOnTop(state.alwaysOnTop); broadcast() }
@@ -261,7 +268,7 @@ function createWindows() {
     }
   })
   participantWindow.on('close', event => {
-    if (!isQuitting) { event.preventDefault(); participantWindow.hide() }
+    if (!isQuitting) { event.preventDefault(); state.participantVisible = false; participantWindow.hide(); broadcast() }
   })
 }
 
@@ -280,7 +287,8 @@ function showHostWindow() {
   hostWindow?.show(); hostWindow?.focus()
 }
 function showParticipantWindow() {
-  participantWindow?.show(); participantWindow?.focus()
+  state.participantVisible = true
+  participantWindow?.show(); participantWindow?.focus(); broadcast()
 }
 function quitApplication() { isQuitting = true; app.quit() }
 function showParticipantContextMenu() {
@@ -302,7 +310,7 @@ function installTray() {
   tray.setToolTip('靜心主持台')
   const trayMenu = Menu.buildFromTemplate([
     { label: '顯示主持台', click: showHostWindow },
-    { label: '顯示參與者畫面', click: showParticipantWindow },
+    { id: 'participant-visible', label: '隱藏參與者畫面', click: () => execute('toggleParticipant') },
     { type: 'separator' },
     { label: '開始／繼續', click: start },
     { label: '暫停／繼續', click: () => state.status === 'running' ? pause() : start() },
@@ -348,6 +356,7 @@ function installTray() {
   trayVisibilityItems.clock = trayMenu.getMenuItemById('show-clock')
   trayVisibilityItems.text = trayMenu.getMenuItemById('show-text')
   trayVisibilityItems.alwaysOnTop = trayMenu.getMenuItemById('always-on-top')
+  trayVisibilityItems.participant = trayMenu.getMenuItemById('participant-visible')
   trayVisibilityItems.reminderTimed = trayMenu.getMenuItemById('reminder-timed')
   trayVisibilityItems.reminderTemporary = trayMenu.getMenuItemById('reminder-temporary')
   trayVisibilityItems.reminderMarquee = trayMenu.getMenuItemById('reminder-marquee')
@@ -378,6 +387,7 @@ function installMenu() {
       { label: '顯示／隱藏倒數計時', click: () => execute('toggleCountdown') },
       { label: '顯示／隱藏目前時間', click: () => execute('toggleClock') },
       { label: '顯示／隱藏主文字', click: () => execute('toggleText') },
+      { label: '顯示／隱藏參與者畫面', click: () => execute('toggleParticipant') },
       { label: '切換參與者畫面永遠置頂', click: () => execute('toggleAlwaysOnTop') },
       { type: 'separator' }, { label: '切換參與者全螢幕', accelerator: 'CmdOrCtrl+Shift+F', click: () => participantWindow?.setFullScreen(!participantWindow.isFullScreen()) }
     ]}
@@ -396,7 +406,7 @@ function startAPI() {
     if (staticFiles[url.pathname]) { const [file,type]=staticFiles[url.pathname]; res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'}); return require('fs').createReadStream(path.join(__dirname,file)).pipe(res) }
     if (url.pathname === '/api/fonts') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(await listLocalFontRecords())) }
     if (url.pathname === '/api/events') { res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store','Connection':'keep-alive','Access-Control-Allow-Origin':'*'}); eventClients.add(res); res.write(`data: ${JSON.stringify(publicState())}\n\n`); return req.on('close',()=>eventClients.delete(res)) }
-    const routes = { '/api/start': 'start', '/api/pause': 'pause', '/api/toggle': 'toggle', '/api/reset': 'reset', '/api/finish': 'finish', '/api/toggle-countdown': 'toggleCountdown', '/api/toggle-clock': 'toggleClock', '/api/toggle-text': 'toggleText', '/api/toggle-always-on-top': 'toggleAlwaysOnTop' }
+    const routes = { '/api/start': 'start', '/api/pause': 'pause', '/api/toggle': 'toggle', '/api/reset': 'reset', '/api/finish': 'finish', '/api/toggle-countdown': 'toggleCountdown', '/api/toggle-clock': 'toggleClock', '/api/toggle-text': 'toggleText', '/api/toggle-participant': 'toggleParticipant', '/api/toggle-always-on-top': 'toggleAlwaysOnTop' }
     if (url.pathname === '/api/duration') execute('duration', Number(url.searchParams.get('minutes')))
     else if (routes[url.pathname]) execute(routes[url.pathname])
     else if (url.pathname === '/api/reminder/config') {

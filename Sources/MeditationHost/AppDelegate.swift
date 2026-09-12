@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private var mouseMonitor: Any?
     private var localMouseMonitor: Any?
+    private var shouldShowParticipant = true
     private let apiServer=APIServer()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -55,10 +56,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private func showPopover(){ guard let button=statusItem.button else{return}; popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY); NSApp.activate(ignoringOtherApps:true) }
     func ensureParticipantVisible() {
+        guard shouldShowParticipant else { return }
         guard let window=participantWindow?.window else{return}
         if !window.isVisible { participantWindow.showWindow(nil) }
         if AppModel.shared.alwaysOnTop { window.level = .floating }
         window.orderFront(nil)
+    }
+    var participantIsVisible: Bool { shouldShowParticipant && (participantWindow?.window?.isVisible ?? false) }
+    @discardableResult func toggleParticipantVisibility() -> Bool {
+        shouldShowParticipant.toggle()
+        if shouldShowParticipant { participantWindow.showWindow(nil); participantWindow.window?.orderFront(nil) }
+        else { participantWindow.window?.orderOut(nil) }
+        return shouldShowParticipant
     }
     private func raiseParticipantAtMenuBar(){ let point=NSEvent.mouseLocation; guard let screen=NSScreen.screens.first(where:{$0.frame.contains(point)}) else{return}; if point.y >= screen.frame.maxY-28 { participantWindow.window?.orderFrontRegardless() } }
     private func applyInitialLayout() {
@@ -128,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         addMenuItem(session, "提早結束", "\u{1b}", [], #selector(finishSession))
         session.addItem(NSMenuItem.separator())
         addMenuItem(session, "參與者顯示倒數", "d", [.command,.shift], #selector(toggleCountdown))
+        addMenuItem(session, "顯示／隱藏參與者畫面", "", [], #selector(toggleParticipantVisibilityFromMenu))
         addMenuItem(session, "參與者視窗保持最上層", "t", [.command,.shift], #selector(toggleAlwaysOnTop))
         addMenuItem(session, "參與者視窗全螢幕", "f", [.command,.control], #selector(toggleParticipantFullScreen))
         sessionItem.submenu = session
@@ -154,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func resetSession() { AppModel.shared.reset() }
     @objc private func finishSession() { AppModel.shared.finishEarly() }
     @objc private func toggleCountdown() { AppModel.shared.showCountdown.toggle() }
+    @objc private func toggleParticipantVisibilityFromMenu() { _ = toggleParticipantVisibility() }
     @objc private func toggleAlwaysOnTop() { AppModel.shared.alwaysOnTop.toggle() }
     @objc private func toggleParticipantFullScreen() { participantWindow.window?.toggleFullScreen(nil) }
     @objc private func undoObjectPosition() { AppModel.shared.undoPositionChange() }
