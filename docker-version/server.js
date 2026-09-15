@@ -13,7 +13,9 @@ const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000)
 const VERSION = (() => { try { return require('./package.json').version } catch { return '0.0.0' } })()
 // 必須在載入 config.json 之前宣告：const 沒有提升，放在 deepMerge 旁邊會踩到 TDZ
 const unsafeKeys = new Set(['__proto__', 'constructor', 'prototype'])
-const mediaBase = process.env.MEDIA_BASE_URL || 'http://10.43.50.145:8088/ZenTime/music/'
+const mediaBase = process.env.MEDIA_BASE_URL || ''
+// 沒有設定 MEDIA_BASE_URL 時就留空，讓使用者自己在主持台填音檔網址
+function mediaUrl(name) { try { return mediaBase ? new URL(name, mediaBase).href : '' } catch { return '' } }
 
 const defaults = {
   selectedMinutes: 10, remaining: 600, status: 'ready', startedAt: null, pausedAt: null,
@@ -24,10 +26,10 @@ const defaults = {
   background: '#000000', background2: '#17241d', gradient: false, backgroundImage: '',
   alwaysOnTop: false,
   silent: false, musicEnabled: false, musicMode: 'single',
-  opening: { url: new URL('磬聲.m4a', mediaBase).href, volume: 30, fadeIn: true, fadeOut: true, duration: 8 },
+  opening: { url: mediaUrl('磬聲.m4a'), volume: 30, fadeIn: true, fadeOut: true, duration: 8 },
   music: { urls: [], volume: 30, fadeIn: true, fadeOut: true },
-  closing: { url: new URL('磬聲.m4a', mediaBase).href, volume: 30, fadeIn: true, fadeOut: true },
-  wiim: { host: process.env.WIIM_HOST || '', mac: process.env.WIIM_MAC || '00:22:6c:36:0f:67', scanPrefix: process.env.WIIM_SCAN_PREFIX || '10.43.50', status: '尚未連線' },
+  closing: { url: mediaUrl('磬聲.m4a'), volume: 30, fadeIn: true, fadeOut: true },
+  wiim: { host: process.env.WIIM_HOST || '', mac: process.env.WIIM_MAC || '', scanPrefix: process.env.WIIM_SCAN_PREFIX || '', status: '尚未連線' },
   reminder: {
     timedEnabled: true, temporaryEnabled: true, marqueeEnabled: true, imageEnabled: true,
     boundToMeditation: false, status: 'idle', elapsed: 0, startedAt: null,
@@ -190,7 +192,9 @@ async function runDiscoverWiiM(force = false) {
   const prefixes = new Set([state.wiim.scanPrefix, ...Object.values(os.networkInterfaces()).flat().filter(x => x && x.family === 'IPv4' && !x.internal).map(x => x.address.split('.').slice(0,3).join('.'))].filter(Boolean))
   const targets = [...prefixes].flatMap(prefix => Array.from({length:254}, (_,i) => `${prefix}.${i+1}`))
   let cursor = 0, found = ''
-  async function worker() { while (!found && cursor < targets.length) { const host = targets[cursor++]; try { const body = await requestWiiM(host, 'getStatusEx', 500); if (normalizedMac(body).includes(normalizedMac(state.wiim.mac))) found = host } catch {} } }
+  const wanted = normalizedMac(state.wiim.mac)
+  const matches = body => wanted ? normalizedMac(body).includes(wanted) : /uuid|DeviceName/.test(body)
+  async function worker() { while (!found && cursor < targets.length) { const host = targets[cursor++]; try { const body = await requestWiiM(host, 'getStatusEx', 500); if (matches(body)) found = host } catch {} } }
   await Promise.all(Array.from({length:32}, worker))
   if (found) { state.wiim.host = found; state.wiim.status = `已連線 ${found}`; save() } else state.wiim.status = '找不到 WiiM Pro，請輸入 IP'
   broadcast(); return found

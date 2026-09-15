@@ -11,7 +11,7 @@ ZenTime 是供靜心活動主持人使用的 macOS／Windows 雙視窗控制 App
 
 ## QNAP Docker 網頁版
 
-`docker-version/` 提供主持台、16:9 參與者畫面、手機控制頁、既有 Companion API，以及 WiiM Pro 播放控制。預設以 MAC `00:22:6c:36:0f:67` 尋找 WiiM，並從 `http://10.43.50.145:8088/ZenTime/music/` 讀取 QNAP 音檔。詳細部署方式請參考 `docker-version/README.md`。
+`docker-version/` 提供主持台、16:9 參與者畫面、手機控制頁、既有 Companion API，以及 WiiM Pro 播放控制。WiiM 的位址與音檔資料夾網址都由環境變數設定，程式沒有預設任何裝置。詳細部署方式請參考 `docker-version/README.md`。
 
 ## 使用方式
 
