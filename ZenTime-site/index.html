@@ -128,6 +128,40 @@
 
     <section id="download" class="section download wrap">
       <div class="section-head centered reveal"><p class="eyebrow">下載 ZenTime</p><h2>下一場靜心，從容開始。</h2><p>選擇你的電腦版本。下載後即可使用，不需建立帳號。</p></div>
+      <!--
+        維護備註（這段是 HTML 註解，網站訪客看不到）
+
+        1. 這個下載區塊的連結同時存在三個檔案，改版本號時三個都要一起改：
+             ZenTime-site/index.html   來源副本
+             docs/index.html           GitHub Pages 實際服務的頁面
+             docs/latest.html          index.html 的複本
+           只改其中一個，線上不會更新，或是出現版本不一致的狀況。
+           改完用這行確認沒有漏掉：
+             grep -rn "ZenTime-Docker" ZenTime-site/index.html docs/index.html docs/latest.html
+           合併進 main 之後，GitHub Pages 大約一兩分鐘才會重新部署。
+
+        2. 桌面版、Companion 模組、Docker 套件各有自己的版本號，
+           但附件都掛在同一個 release tag 底下。
+           例如 ZenTime-Docker-1.2.1.tar.gz 是掛在 v1.2.6 上面。
+             打包：tar -czf ZenTime-Docker-1.2.1.tar.gz -C docker-version .
+             上傳：gh release upload v1.2.6 ZenTime-Docker-1.2.1.tar.gz
+           舊版附件保留不刪，讓已經下載過的人分辨得出手上是哪一版。
+
+        3. 自用的那台 QNAP NAS 上，ZenTime 並不是用 docker-version/Dockerfile 建置的。
+           容器直接跑官方 node:22-alpine，程式碼是用 bind mount 掛進去的：
+             /share/Container/zentime/app    掛到 /app    唯讀，程式碼放這裡
+             /share/Container/zentime/data   掛到 /data    可寫，config.json 放這裡
+           更新那台 NAS 的方式，是把 docker-version 的 server.js、package.json、public
+           複製到上面的 app 資料夾，然後 docker restart zentime。不需要也不會 build。
+
+           所以 Dockerfile 和 docker-compose.yml 的內容對自用的那台 NAS 完全沒有作用，
+           裡面的 tzdata、健康檢查、非 root 執行這些設定，
+           只有別人下載套件、自己執行 docker compose up 時才會生效。
+           要讓 NAS 也吃到那些設定，必須先把部署方式改成 build 模式。
+
+           確認更新是否生效：curl http://NAS位址:4747/api/health
+           這支端點從 Docker 套件 1.2.1 起才有，舊版會回 404。
+      -->
       <div class="download-grid">
         <article class="download-card reveal"><div class="os"></div><p class="tag">macOS · 1.2.6</p><h3>Apple Silicon</h3><p>適用 M1、M2、M3、M4 與後續 Apple 晶片 Mac。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.2.6/ZenTime-macOS-Apple-Silicon-1.2.6.dmg">下載 DMG</a></article>
         <article class="download-card reveal"><div class="os"></div><p class="tag">macOS · 1.2.6</p><h3>Intel</h3><p>適用搭載 Intel 處理器的 Mac 電腦。</p><a class="button primary full" href="https://github.com/houtacheng/ZenTime/releases/download/v1.2.6/ZenTime-macOS-Intel-1.2.6.dmg">下載 DMG</a></article>
