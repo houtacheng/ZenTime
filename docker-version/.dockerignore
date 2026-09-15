@@ -1,4 +1,8 @@
 data
 node_modules
+.git
 .DS_Store
 npm-debug.log
+*.log
+README.md
+docker-compose.yml
