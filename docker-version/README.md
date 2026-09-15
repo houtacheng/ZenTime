@@ -16,16 +16,16 @@
 
 既有 WiiM Companion 模組可以繼續使用，讓 Stream Deck 額外控制音量、輸入來源或手動播放。ZenTime Docker 自己也會控制開頭磬聲、背景音樂與結尾磬聲，因此按下 ZenTime「開始」時不需要再另外按一次 WiiM 播放。
 
-## 預設整合
+## WiiM Pro 與音檔設定
 
-- WiiM Pro MAC：`00:22:6c:36:0f:67`
-- 掃描網段：`10.43.50.0/24`
-- 音樂網址：`http://10.43.50.145:8088/ZenTime/music/`
-- 內建開頭及結尾磬聲：`磬聲.m4a`
+程式沒有預設任何裝置或網址，第一次啟動請自行設定：
 
-若自動尋找失敗，可在主持台填入 WiiM Pro IP。設定保存在 `./data/config.json`。
+- **音檔來源**：把磬聲與背景音樂放在 NAS 的網頁資料夾，再把資料夾網址填進 `MEDIA_BASE_URL`，例如 `http://192.168.1.100:8088/ZenTime/music/`。也可以之後在主持台直接填每首的完整網址。
+- **WiiM Pro**：填 `WIIM_HOST` 指定 IP 最快，啟動時完全不必掃描。
+- 不知道 IP 時，可以填 `WIIM_MAC`（裝置的 MAC）讓程式自動掃描認出它；`WIIM_SCAN_PREFIX` 可以指定網段前綴，留空就掃容器所在的網段。
+- 兩個都留空的話，自動尋找會接受第一台有回應的 WiiM 裝置。
 
-已知 WiiM Pro 的固定 IP 時，建議直接在 `docker-compose.yml` 的 `WIIM_HOST` 填好，啟動時就不必掃描整個網段。
+設定保存在 `./data/config.json`，之後改用主持台調整即可。
 
 ## 指令列啟動
 
@@ -48,9 +48,9 @@ Docker 使用 host network，讓容器可以直接搜尋及控制同一區域網
 | `PORT` | `4747` | 服務連接埠 |
 | `DATA_DIR` | `/data` | 設定檔位置，對應 `./data` |
 | `WIIM_HOST` | 空 | 指定 WiiM Pro IP，填了就跳過掃描 |
-| `WIIM_MAC` | `00:22:6c:36:0f:67` | 掃描時用來認出 WiiM Pro |
-| `WIIM_SCAN_PREFIX` | `10.43.50` | 掃描網段前綴 |
-| `MEDIA_BASE_URL` | QNAP 音樂資料夾 | 內建磬聲的來源 |
+| `WIIM_MAC` | 空 | 掃描時用來認出 WiiM Pro，留空則接受第一台有回應的裝置 |
+| `WIIM_SCAN_PREFIX` | 空 | 掃描網段前綴，留空則使用容器所在的網段 |
+| `MEDIA_BASE_URL` | 空 | 音檔資料夾網址，留空則需在主持台自行填寫 |
 | `AUTO_DISCOVER` | 未設定 | 設成 `false` 可停用啟動時的自動掃描 |
 | `HEARTBEAT_MS` | `15000` | 閒置時推播心跳的間隔 |
 | `TZ` | `Asia/Taipei` | 映像檔已裝 tzdata，時區設定才會生效 |

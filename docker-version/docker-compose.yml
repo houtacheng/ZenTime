@@ -10,11 +10,15 @@ services:
     environment:
       PORT: "4747"
       DATA_DIR: /data
-      WIIM_MAC: "00:22:6c:36:0f:67"
-      WIIM_SCAN_PREFIX: "10.43.50"
-      # 已知 WiiM Pro 的 IP 時填在這裡，可以省掉啟動時的整段網段掃描
+      # 以下四項請改成自己環境的值，留空也可以正常啟動
+      # WiiM Pro 的 MAC，自動掃描時用來認出裝置；留空就接受第一台回應的 WiiM
+      WIIM_MAC: ""
+      # 要掃描的網段前綴，例如 192.168.1；留空會自動使用容器所在的網段
+      WIIM_SCAN_PREFIX: ""
+      # 已知 WiiM Pro 的 IP 時填在這裡，可以完全省掉掃描
       WIIM_HOST: ""
-      MEDIA_BASE_URL: "http://10.43.50.145:8088/ZenTime/music/"
+      # 放音檔的資料夾網址，例如 http://192.168.1.100:8088/ZenTime/music/
+      MEDIA_BASE_URL: ""
       TZ: Asia/Taipei
     volumes:
       - ./data:/data

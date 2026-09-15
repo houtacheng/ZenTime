@@ -1,6 +1,6 @@
 {
   "name": "zentime-docker",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "ZenTime Docker server for QNAP, web displays, Companion and WiiM Pro",
   "main": "server.js",
