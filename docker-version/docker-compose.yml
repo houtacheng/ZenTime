@@ -1,15 +1,26 @@
 services:
   zentime:
     build: .
+    image: zentime:latest
     container_name: zentime
     restart: unless-stopped
+    init: true
+    # host 網路讓容器可以直接掃描並控制同一區網的 WiiM Pro
     network_mode: host
     environment:
       PORT: "4747"
       DATA_DIR: /data
       WIIM_MAC: "00:22:6c:36:0f:67"
       WIIM_SCAN_PREFIX: "10.43.50"
+      # 已知 WiiM Pro 的 IP 時填在這裡，可以省掉啟動時的整段網段掃描
+      WIIM_HOST: ""
       MEDIA_BASE_URL: "http://10.43.50.145:8088/ZenTime/music/"
       TZ: Asia/Taipei
     volumes:
       - ./data:/data
+    # NAS 長期執行，限制 log 大小避免吃掉磁碟
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZenTime 提醒畫面</title><link rel="stylesheet" href="reminder.css"><style>[hidden]{display:none!important}.notice.red.effect>*{animation:blinkZoom .75s ease-in-out infinite}.notice.preview,.temporary.preview,.marquee.preview,#image.preview{opacity:0}.image-preview{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);padding:24px 32px;color:#fff;font:700 28px system-ui;opacity:0}#stage:hover .notice.preview,#stage:hover .temporary.preview,#stage:hover .marquee.preview,#stage:hover #image.preview,#stage:hover .image-preview.preview,#stage.control-preview .notice.preview,#stage.control-preview .temporary.preview,#stage.control-preview .marquee.preview,#stage.control-preview #image.preview,#stage.control-preview .image-preview.preview{opacity:1}</style></head><body>
+<main id="stage">
+  <div id="timed" class="notice"><div id="timedText"></div><div id="timedTime"></div></div>
+  <div id="timedPreview" class="notice preview"><div id="previewText"></div><div id="previewTime"></div></div>
+  <div id="temporary" class="temporary"></div>
+  <div id="marquee" class="marquee"><span id="marqueeText"></span></div>
+  <img id="image" alt="提醒圖片">
+  <div id="imagePreview" class="image-preview"></div>
+  <div id="hoverHint">拖曳視窗到需要的位置 · 滑鼠離開後背景透明</div>
+</main><script src="reminder.js"></script></body></html>
