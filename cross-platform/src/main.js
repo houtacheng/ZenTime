@@ -50,6 +50,42 @@ let fontCache = null
 let fontRecordCache = null
 
 const updatePreferencesPath = () => path.join(app.getPath('userData'), 'update-preferences.json')
+const defaultSettingsPath = () => path.join(app.getPath('userData'), 'default-settings.json')
+const defaultSettingKeys = [
+  'selectedMinutes', 'text', 'showText', 'textFont', 'textSize', 'textColor', 'textPosition',
+  'showClock', 'clock24', 'clockFont', 'clockSize', 'clockPosition',
+  'showCountdown', 'countdownFont', 'countdownSize', 'countdownPosition',
+  'progressStyle', 'progressMode', 'progressDirection', 'progressSize', 'progressStart', 'progressEnd',
+  'background', 'background2', 'gradient', 'backgroundImage', 'alwaysOnTop', 'silent', 'musicEnabled',
+  'opening', 'music', 'closing', 'reminder',
+]
+function mergeSettings(target, source) {
+  for (const [key, value] of Object.entries(source || {})) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) mergeSettings(target[key] ||= {}, value)
+    else target[key] = value
+  }
+}
+function defaultSettingsSnapshot() {
+  const settings = Object.fromEntries(defaultSettingKeys.map(key => [key, JSON.parse(JSON.stringify(state[key]))]))
+  settings.reminder.status = 'idle'; settings.reminder.elapsed = 0; settings.reminder.startedAt = null
+  settings.reminder.temporary.active = false; settings.reminder.temporary.startedAt = null; settings.reminder.temporary.stoppingAt = null
+  settings.reminder.marquee.active = false; settings.reminder.marquee.startedAt = null; settings.reminder.marquee.stoppingAt = null
+  settings.reminder.image.active = false; settings.reminder.image.startedAt = null
+  return settings
+}
+function loadDefaultSettings() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(defaultSettingsPath(), 'utf8'))
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) mergeSettings(state, saved)
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.warn('Unable to load default settings:', error.message)
+  }
+  state.status = 'ready'; state.remaining = Math.max(1, Number(state.selectedMinutes) || 10) * 60
+}
+function saveCurrentAsDefault() {
+  fs.writeFileSync(defaultSettingsPath(), JSON.stringify(defaultSettingsSnapshot(), null, 2))
+  return { ok: true, message: '目前設定已儲存，下次開啟會自動套用。' }
+}
 function readUpdatePreferences() {
   try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')) }
   catch { return {} }
@@ -356,6 +392,7 @@ function createWindows() {
   marqueeWindow = createReminder('marquee', 'ZenTime 跑馬燈提醒', { width: Math.min(900, work.width - 120), height: 320, x: work.x + 60, y: work.y + work.height - 380 })
   imageWindow = createReminder('image', 'ZenTime PNG 圖片提醒', { width: 420, height: 320, x: work.x + work.width - 500, y: work.y + 110 })
   hostWindow.loadFile(path.join(__dirname, 'host.html')); participantWindow.loadFile(path.join(__dirname, 'participant.html'))
+  participantWindow.setAlwaysOnTop(state.alwaysOnTop)
   participantWindow.webContents.on('context-menu', () => showParticipantContextMenu())
   hostWindow.on('close', event => {
     if (!isQuitting) {
@@ -474,6 +511,11 @@ function installMenu() {
   ] })
   template.push(
     { label: '檔案', submenu: [
+      { label: '儲存目前設定為預設', click: async () => {
+        try { saveCurrentAsDefault(); await dialog.showMessageBox(hostWindow, { type: 'info', title: '已儲存', message: '目前設定已儲存為預設。', detail: '下次開啟 ZenTime 時會自動套用。', buttons: ['好'] }) }
+        catch (error) { await dialog.showMessageBox(hostWindow, { type: 'error', title: '無法儲存設定', message: error.message, buttons: ['好'] }) }
+      } },
+      { type: 'separator' },
       { label: process.platform === 'darwin' ? '將主持台收進選單列' : '隱藏主持台到系統匣', click: () => { hostWindow?.hide(); if (process.platform === 'darwin') app.setActivationPolicy('accessory') } },
       { label: '關閉目前視窗', accelerator: 'CmdOrCtrl+W', role: 'close' },
       { type: 'separator' }, { label: '結束', accelerator: process.platform === 'darwin' ? undefined : 'Alt+F4', click: quitApplication }
@@ -528,6 +570,7 @@ function startAPI() {
     else if (url.pathname === '/api/reminder/image/hide') { state.reminder.image.active=false;broadcast() }
     else if (url.pathname === '/api/reminder/hide-all') hideAllReminders()
     else if (url.pathname === '/api/reminder/control/show') showReminderControl()
+    else if (url.pathname === '/api/settings/save-default') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(saveCurrentAsDefault())) }
     else if (url.pathname !== '/api/state') { res.writeHead(404); return res.end('{}') }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(publicState()))
   })
@@ -539,6 +582,10 @@ function startAPI() {
 }
 
 ipcMain.handle('state:get', () => publicState())
+ipcMain.handle('settings:save-default', () => {
+  try { return saveCurrentAsDefault() }
+  catch (error) { return { ok: false, message: `無法儲存設定：${error.message}` } }
+})
 ipcMain.handle('network:addresses', () => ['127.0.0.1', ...Object.values(os.networkInterfaces()).flat().filter(x => x?.family === 'IPv4' && !x.internal).map(x => x.address)])
 ipcMain.handle('fonts:list', () => listLocalFonts())
 ipcMain.handle('browser:open', (_event, url) => {
@@ -678,6 +725,7 @@ ipcMain.on('reminder:escape', event => dismissReminderWindow(BrowserWindow.fromW
 app.whenReady().then(() => {
   const builtInChime = pathToFileURL(path.join(__dirname, '..', 'resources', 'BuiltInChime.m4a')).href
   state.opening.file = builtInChime; state.closing.file = builtInChime
+  loadDefaultSettings()
   startAPI(); createWindows(); installTray(); installMenu(); configureAutoUpdater(); broadcast()
   reminderTimer = setInterval(broadcast, 250)
   setTimeout(() => checkForUpdates(), 2500)

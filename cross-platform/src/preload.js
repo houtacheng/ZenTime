@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('meditation', {
   getState: () => ipcRenderer.invoke('state:get'),
+  saveDefaults: () => ipcRenderer.invoke('settings:save-default'),
   command: (name, value) => ipcRenderer.invoke('command', name, value),
   chooseFile: kind => ipcRenderer.invoke('file:choose', kind),
   chooseFiles: kind => ipcRenderer.invoke('files:choose', kind),
