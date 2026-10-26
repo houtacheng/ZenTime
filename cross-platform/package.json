@@ -1,16 +1,19 @@
 {
   "name": "meditation-host-cross-platform",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "靜心主持台跨平台版",
   "main": "src/main.js",
   "author": "Sunda",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "pack:mac": "electron-builder --mac dmg",
+    "pack:mac": "electron-builder --mac dmg zip --universal",
     "pack:win": "electron-builder --win nsis portable --x64",
     "pack:win-arm64": "electron-builder --win nsis portable --arm64",
     "pack:all": "electron-builder --mac dmg --win nsis portable --x64"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -27,11 +30,17 @@
       "resources/**/*",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "houtacheng",
+      "repo": "ZenTime"
+    },
     "mac": {
       "category": "public.app-category.healthcare-fitness",
       "icon": "resources/icon.png",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ]
     },
     "win": {

@@ -4,9 +4,12 @@ const os = require('os')
 const path = require('path')
 const { execFile } = require('child_process')
 const { pathToFileURL } = require('url')
+const fs = require('fs')
+const { autoUpdater } = require('electron-updater')
 
-let hostWindow, participantWindow, reminderWindow, temporaryWindow, marqueeWindow, imageWindow, reminderControlWindow, timer, reminderTimer, apiServer, tray
+let hostWindow, participantWindow, reminderWindow, temporaryWindow, marqueeWindow, imageWindow, reminderControlWindow, updateWindow, timer, reminderTimer, apiServer, tray
 let isQuitting = false
+let updateCheckManual = false, updateCheckRunning = false, updateDownloadRequested = false
 const eventClients = new Set()
 let reminderManual = null
 let reminderEffectFullscreen = false, reminderRestoreBounds = null, reminderEffectTransitioning = false
@@ -45,6 +48,99 @@ const reminderDragSnapshots = new Map()
 const reminderResizeSnapshots = new Map()
 let fontCache = null
 let fontRecordCache = null
+
+const updatePreferencesPath = () => path.join(app.getPath('userData'), 'update-preferences.json')
+function readUpdatePreferences() {
+  try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')) }
+  catch { return {} }
+}
+function writeUpdatePreferences(preferences) {
+  try { fs.writeFileSync(updatePreferencesPath(), JSON.stringify(preferences, null, 2)) }
+  catch (error) { console.warn('Unable to save update preferences:', error.message) }
+}
+function updateNotesText(info) {
+  const notes = Array.isArray(info?.releaseNotes) ? info.releaseNotes.map(note => note.note || '').join('\n') : info?.releaseNotes
+  return String(notes || '此版本包含功能改善與問題修正。').replace(/<[^>]*>/g, '').trim().slice(0, 1200)
+}
+function showUpdateProgress() {
+  if (!updateWindow || updateWindow.isDestroyed()) {
+    updateWindow = new BrowserWindow({
+      width: 440, height: 230, resizable: false, maximizable: false, minimizable: false,
+      title: '正在更新 ZenTime', parent: hostWindow || undefined, modal: !!hostWindow,
+      backgroundColor: '#08140f', webPreferences: { preload: path.join(__dirname, 'update-preload.js') },
+    })
+    updateWindow.setMenuBarVisibility(false)
+    updateWindow.loadFile(path.join(__dirname, 'update.html'))
+    updateWindow.on('closed', () => { updateWindow = null })
+  }
+  updateWindow.show(); updateWindow.focus()
+}
+function sendUpdateProgress(data) {
+  if (updateWindow && !updateWindow.isDestroyed()) updateWindow.webContents.send('update:progress', data)
+}
+async function checkForUpdates({ manual = false } = {}) {
+  if (updateCheckRunning) return
+  if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform)) {
+    if (manual) await dialog.showMessageBox(hostWindow, { type: 'info', title: '檢查更新', message: '目前是開發測試模式', detail: '正式安裝版會透過 GitHub Releases 自動檢查更新。', buttons: ['好'] })
+    return
+  }
+  updateCheckManual = manual
+  updateCheckRunning = true
+  try { await autoUpdater.checkForUpdates() }
+  catch (error) {
+    updateCheckRunning = false
+    if (manual) await dialog.showMessageBox(hostWindow, { type: 'warning', title: '目前無法檢查更新', message: '請稍後再試一次。', detail: error.message, buttons: ['好'] })
+    else console.warn('Automatic update check failed:', error.message)
+  }
+}
+function configureAutoUpdater() {
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.allowPrerelease = false
+  autoUpdater.on('update-available', async info => {
+    updateCheckRunning = false
+    const version = String(info.version || '')
+    if (!updateCheckManual && readUpdatePreferences().skippedVersion === version) return
+    const choice = await dialog.showMessageBox(hostWindow, {
+      type: 'info', title: 'ZenTime 有新版本',
+      message: `發現 ZenTime ${version}`,
+      detail: `${updateNotesText(info)}\n\n選擇「立即更新」後，ZenTime 會自動下載、安裝並重新啟動。`,
+      buttons: ['立即更新', '跳過此版本'], defaultId: 0, cancelId: 1, noLink: true,
+    })
+    if (choice.response !== 0) {
+      writeUpdatePreferences({ ...readUpdatePreferences(), skippedVersion: version })
+      return
+    }
+    writeUpdatePreferences({ ...readUpdatePreferences(), skippedVersion: null })
+    updateDownloadRequested = true
+    showUpdateProgress()
+    sendUpdateProgress({ percent: 0, status: '準備下載…' })
+    try { await autoUpdater.downloadUpdate() }
+    catch (error) {
+      updateDownloadRequested = false
+      updateWindow?.close()
+      await dialog.showMessageBox(hostWindow, { type: 'error', title: '更新下載失敗', message: '無法下載或安裝更新。', detail: error.message, buttons: ['好'] })
+    }
+  })
+  autoUpdater.on('update-not-available', async () => {
+    updateCheckRunning = false
+    if (updateCheckManual) await dialog.showMessageBox(hostWindow, { type: 'info', title: '已是最新版本', message: `目前的 ZenTime ${app.getVersion()} 已是最新版本。`, buttons: ['好'] })
+  })
+  autoUpdater.on('download-progress', progress => {
+    sendUpdateProgress({ percent: progress.percent, status: '正在下載…', message: `已下載 ${Math.round(progress.percent || 0)}%，完成後會自動安裝並重新啟動。` })
+  })
+  autoUpdater.on('update-downloaded', () => {
+    sendUpdateProgress({ percent: 100, status: '準備安裝…', message: '下載完成，ZenTime 即將重新啟動。' })
+    setTimeout(() => { isQuitting = true; autoUpdater.quitAndInstall(false, true) }, 700)
+  })
+  autoUpdater.on('error', async error => {
+    updateCheckRunning = false
+    if (!updateDownloadRequested) return console.warn('Auto updater error:', error.message)
+    updateDownloadRequested = false
+    updateWindow?.close()
+    await dialog.showMessageBox(hostWindow, { type: 'error', title: '更新失敗', message: '更新未完成，ZenTime 不會關閉。', detail: error.message, buttons: ['好'] })
+  })
+}
 
 function runFile(command, args) { return new Promise((resolve, reject) => execFile(command, args, { maxBuffer: 20 * 1024 * 1024, windowsHide: true }, (error, stdout) => error ? reject(error) : resolve(stdout))) }
 async function listLocalFontRecords() {
@@ -350,6 +446,8 @@ function installTray() {
       { label: '立即隱藏所有提醒', click: () => hideAllReminders() },
     ] },
     { type: 'separator' },
+    { label: '檢查更新…', click: () => checkForUpdates({ manual: true }) },
+    { type: 'separator' },
     { label: '結束靜心主持台', click: quitApplication },
   ])
   trayVisibilityItems.countdown = trayMenu.getMenuItemById('show-countdown')
@@ -370,6 +468,7 @@ function installMenu() {
   const template = []
   if (process.platform === 'darwin') template.push({ label: app.name, submenu: [
     { role: 'about', label: '關於靜心主持台' }, { type: 'separator' },
+    { label: '檢查更新…', click: () => checkForUpdates({ manual: true }) }, { type: 'separator' },
     { role: 'hide', label: '隱藏靜心主持台' }, { role: 'hideOthers', label: '隱藏其他程式' }, { role: 'unhide', label: '全部顯示' },
     { type: 'separator' }, { label: '結束靜心主持台', accelerator: 'Command+Q', click: quitApplication }
   ] })
@@ -390,7 +489,8 @@ function installMenu() {
       { label: '顯示／隱藏參與者畫面', click: () => execute('toggleParticipant') },
       { label: '切換參與者畫面永遠置頂', click: () => execute('toggleAlwaysOnTop') },
       { type: 'separator' }, { label: '切換參與者全螢幕', accelerator: 'CmdOrCtrl+Shift+F', click: () => participantWindow?.setFullScreen(!participantWindow.isFullScreen()) }
-    ]}
+    ]},
+    ...(process.platform === 'darwin' ? [] : [{ label: '說明', submenu: [{ label: '檢查更新…', click: () => checkForUpdates({ manual: true }) }] }])
   )
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
@@ -578,8 +678,9 @@ ipcMain.on('reminder:escape', event => dismissReminderWindow(BrowserWindow.fromW
 app.whenReady().then(() => {
   const builtInChime = pathToFileURL(path.join(__dirname, '..', 'resources', 'BuiltInChime.m4a')).href
   state.opening.file = builtInChime; state.closing.file = builtInChime
-  startAPI(); createWindows(); installTray(); installMenu(); broadcast()
+  startAPI(); createWindows(); installTray(); installMenu(); configureAutoUpdater(); broadcast()
   reminderTimer = setInterval(broadcast, 250)
+  setTimeout(() => checkForUpdates(), 2500)
 })
 app.on('window-all-closed', () => {})
 app.on('before-quit', () => { isQuitting = true; clearInterval(timer); clearInterval(reminderTimer); apiServer?.close(); globalShortcut.unregisterAll(); tray?.destroy() })
