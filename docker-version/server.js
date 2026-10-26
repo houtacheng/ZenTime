@@ -22,7 +22,7 @@ const defaults = {
   showClock: false, clock24: false, clockSize: 50, clockFont: 'system-ui', clockPosition: { x: 50, y: 12 },
   showText: true, text: '靜心練習', textSize: 80, textFont: 'system-ui', textColor: '#ffffff', textPosition: { x: 50, y: 34 },
   showCountdown: true, countdownSize: 60, countdownFont: 'system-ui', countdownPosition: { x: 50, y: 73 },
-  progressStyle: 'ring', progressSize: 25, progressStart: '#20d760', progressEnd: '#e4bd55',
+  progressStyle: 'ring', progressMode: 'fill', progressDirection: 'forward', progressSize: 25, progressStart: '#20d760', progressEnd: '#e4bd55',
   background: '#000000', background2: '#17241d', gradient: false, backgroundImage: '',
   alwaysOnTop: false,
   silent: false, musicEnabled: false, musicMode: 'single',

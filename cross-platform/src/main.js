@@ -19,7 +19,7 @@ const state = {
   text: '靜心練習', showText: true, textFont: '系統預設字體', textSize: 80, textColor: '#f7f7f7', textPosition: { x: .5, y: .62 },
   showClock: false, clock24: false, clockFont: '系統預設字體', clockSize: 50, clockPosition: { x: .5, y: .86 },
   showCountdown: false, countdownFont: '系統預設字體', countdownSize: 60, countdownPosition: { x: .5, y: .25 },
-  progressStyle: 'ring', progressSize: 25, progressStart: '#32d05b', progressEnd: '#e3c767',
+  progressStyle: 'ring', progressMode: 'fill', progressDirection: 'forward', progressSize: 25, progressStart: '#32d05b', progressEnd: '#e3c767',
   background: '#000000', background2: '#123326', gradient: false, backgroundImage: '',
   participantVisible: true, alwaysOnTop: false, silent: false, musicEnabled: false,
   opening: { file: '', volume: 30, fadeIn: true, fadeOut: true },

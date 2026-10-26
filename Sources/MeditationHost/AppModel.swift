@@ -5,6 +5,8 @@ enum SessionState {
     case ready, running, paused, finished
 }
 enum CountdownProgressStyle { case ring, line }
+enum CountdownProgressMode { case fill, drain }
+enum CountdownProgressDirection { case forward, reverse }
 
 final class AppModel: NSObject {
     static let shared = AppModel()
@@ -34,6 +36,8 @@ final class AppModel: NSObject {
     var countdownFontName = "STHeitiTC-Medium" { didSet { onVisualChange?() } }
     var countdownPosition = CGPoint(x: 0.5, y: 0.25) { didSet { onVisualChange?() } }
     var countdownProgressStyle: CountdownProgressStyle = .ring { didSet { onVisualChange?() } }
+    var countdownProgressMode: CountdownProgressMode = .fill { didSet { onVisualChange?() } }
+    var countdownProgressDirection: CountdownProgressDirection = .forward { didSet { onVisualChange?() } }
     var countdownProgressSize: CGFloat = 0.25 { didSet { onVisualChange?() } }
     var progressColorStart = NSColor.systemGreen { didSet { onVisualChange?() } }
     var progressColorEnd = NSColor.systemYellow { didSet { onVisualChange?() } }

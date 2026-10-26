@@ -111,6 +111,8 @@ final class HostViewController: NSViewController {
         countdownCheck.target = self; countdownCheck.action = #selector(countdownToggled(_:)); root.addArrangedSubview(countdownCheck)
         let countdownFont=NSPopUpButton(); countdownFont.addItems(withTitles:fontNamesByDisplay.keys.sorted{$0.localizedStandardCompare($1) == .orderedAscending}); let countdownDisplay=NSFont(name:model.countdownFontName,size:14)?.displayName ?? ""; if countdownFont.itemTitles.contains(countdownDisplay) { countdownFont.selectItem(withTitle:countdownDisplay) } else if let fallback=countdownFont.itemTitles.first { countdownFont.selectItem(withTitle:fallback); model.countdownFontName=fontNamesByDisplay[fallback] ?? model.countdownFontName }; countdownFont.target=self; countdownFont.action=#selector(countdownFontChanged(_:)); let countdownFontRow=NSStackView(); countdownFontRow.orientation = .horizontal; countdownFontRow.addArrangedSubview(NSTextField(labelWithString:"倒數字體")); countdownFontRow.addArrangedSubview(countdownFont); root.addArrangedSubview(countdownFontRow)
         let progressStyle=NSPopUpButton(); progressStyle.addItems(withTitles:["圓環進度","直線進度"]); progressStyle.target=self; progressStyle.action=#selector(progressStyleChanged(_:)); root.addArrangedSubview(progressStyle)
+        let progressMode=NSPopUpButton(); progressMode.addItems(withTitles:["由空白慢慢填滿","由滿格慢慢減少"]); progressMode.target=self; progressMode.action=#selector(progressModeChanged(_:)); root.addArrangedSubview(progressMode)
+        let progressDirection=NSPopUpButton(); progressDirection.addItems(withTitles:["順時鐘／左到右","逆時鐘／右到左"]); progressDirection.target=self; progressDirection.action=#selector(progressDirectionChanged(_:)); root.addArrangedSubview(progressDirection)
         let progressColors=NSStackView(); progressColors.orientation = .horizontal; progressColors.distribution = .fillEqually
         progressColors.addArrangedSubview(button("進度起始色…",#selector(chooseProgressStart))); progressColors.addArrangedSubview(button("進度結束色…",#selector(chooseProgressEnd))); root.addArrangedSubview(progressColors)
         root.addArrangedSubview(sliderRow("倒數大小", value: 60, min: 18, max: 160, action: #selector(countdownSizeChanged(_:)), suffix:" pt"))
@@ -209,6 +211,8 @@ final class HostViewController: NSViewController {
     @objc private func chooseProgressEnd() { showColorPicker(initial:model.progressColorEnd){self.model.progressColorEnd=$0} }
     @objc private func backgroundGradientToggled(_ sender:NSButton) { model.backgroundGradientEnabled=sender.state == .on }
     @objc private func progressStyleChanged(_ sender:NSPopUpButton) { model.countdownProgressStyle=sender.indexOfSelectedItem==0 ? .ring:.line }
+    @objc private func progressModeChanged(_ sender:NSPopUpButton) { model.countdownProgressMode=sender.indexOfSelectedItem==0 ? .fill:.drain }
+    @objc private func progressDirectionChanged(_ sender:NSPopUpButton) { model.countdownProgressDirection=sender.indexOfSelectedItem==0 ? .forward:.reverse }
     private func showColorPicker(initial: NSColor, apply: @escaping (NSColor) -> Void) {
         (NSApp.delegate as? AppDelegate)?.ensureParticipantVisible()
         let panel = NSColorPanel.shared; panel.color = initial; ColorReceiver.shared.apply = apply; panel.setTarget(ColorReceiver.shared); panel.setAction(#selector(ColorReceiver.changed(_:))); panel.makeKeyAndOrderFront(nil)

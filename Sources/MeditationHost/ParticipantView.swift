@@ -71,6 +71,8 @@ final class ParticipantView: NSView {
         progressView.isHidden = !model.showCountdown
         progressView.progress = model.countdownProgress
         progressView.style = model.countdownProgressStyle
+        progressView.mode = model.countdownProgressMode
+        progressView.direction = model.countdownProgressDirection
         progressView.startColor = model.progressColorStart
         progressView.endColor = model.progressColorEnd
         positionElements()
@@ -217,17 +219,20 @@ final class ParticipantView: NSView {
 final class CountdownProgressView:NSView {
     var progress:CGFloat=1 { didSet{needsDisplay=true} }
     var style:CountdownProgressStyle = .ring { didSet{needsDisplay=true} }
+    var mode:CountdownProgressMode = .fill { didSet{needsDisplay=true} }
+    var direction:CountdownProgressDirection = .forward { didSet{needsDisplay=true} }
     var startColor=NSColor.systemGreen { didSet{needsDisplay=true} }
     var endColor=NSColor.systemYellow { didSet{needsDisplay=true} }
     override var isOpaque:Bool { false }
     override func hitTest(_ point:NSPoint)->NSView? { nil }
     override func draw(_ dirtyRect:NSRect) {
         super.draw(dirtyRect)
-        let p=max(0,min(1,progress)); let gradient=NSGradient(starting:startColor,ending:endColor)!
+        let raw=max(0,min(1,progress)); let p=mode == .drain ? 1-raw : raw; let gradient=NSGradient(starting:startColor,ending:endColor)!
         if style == .line {
             let track=NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2); NSColor.white.withAlphaComponent(0.18).setFill(); track.fill()
-            let fill=NSBezierPath(roundedRect:NSRect(x:0,y:0,width:bounds.width*p,height:bounds.height),xRadius:bounds.height/2,yRadius:bounds.height/2)
-            NSGraphicsContext.saveGraphicsState(); fill.addClip(); gradient.draw(in:bounds,angle:0); NSGraphicsContext.restoreGraphicsState()
+            let fillRect=NSRect(x:direction == .forward ? 0 : bounds.width*(1-p),y:0,width:bounds.width*p,height:bounds.height)
+            let fill=NSBezierPath(roundedRect:fillRect,xRadius:bounds.height/2,yRadius:bounds.height/2)
+            NSGraphicsContext.saveGraphicsState(); fill.addClip(); gradient.draw(in:bounds,angle:direction == .forward ? 0:180); NSGraphicsContext.restoreGraphicsState()
         } else {
             let lineWidth:CGFloat=6; let rect=bounds.insetBy(dx:lineWidth,dy:lineWidth)
             let track=NSBezierPath(ovalIn:rect); track.lineWidth=lineWidth; NSColor.white.withAlphaComponent(0.16).setStroke(); track.stroke()
@@ -235,7 +240,8 @@ final class CountdownProgressView:NSView {
             for index in 0..<segments {
                 let fraction=CGFloat(index)/100; let color=startColor.blended(withFraction:fraction,of:endColor) ?? startColor; color.setStroke()
                 let path=NSBezierPath(); path.lineWidth=lineWidth; path.lineCapStyle = .round
-                path.appendArc(withCenter:CGPoint(x:bounds.midX,y:bounds.midY),radius:radius,startAngle:90-360*CGFloat(index)/100,endAngle:90-360*CGFloat(index+1)/100,clockwise:true); path.stroke()
+                let sign:CGFloat = direction == .forward ? -1:1
+                path.appendArc(withCenter:CGPoint(x:bounds.midX,y:bounds.midY),radius:radius,startAngle:90+sign*360*CGFloat(index)/100,endAngle:90+sign*360*CGFloat(index+1)/100,clockwise:direction == .forward); path.stroke()
             }
         }
     }
