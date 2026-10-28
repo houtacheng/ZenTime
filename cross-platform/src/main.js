@@ -113,7 +113,9 @@ function showUpdateProgress() {
   updateWindow.show(); updateWindow.focus()
 }
 function sendUpdateProgress(data) {
-  if (updateWindow && !updateWindow.isDestroyed()) updateWindow.webContents.send('update:progress', data)
+  if (!isWindowUsable(updateWindow)) return
+  try { updateWindow.webContents.send('update:progress', data) }
+  catch (error) { console.warn('Unable to update download progress window:', error.message) }
 }
 async function checkForUpdates({ manual = false } = {}) {
   if (updateCheckRunning) return
@@ -272,13 +274,26 @@ function publicState() {
   const elapsed = Math.max(0, state.selectedMinutes * 60 - state.remaining)
   const reminderSeconds = reminderElapsed()
   const result = { ...state, participantFullscreen: participantPresentationFullscreen, reminder: { ...state.reminder, elapsed: reminderSeconds, ...reminderPresentation(reminderSeconds) }, reminderPreview: Object.fromEntries(Object.entries(reminderPreviewUntil).map(([mode,until])=>[mode,Date.now()<until])), state: state.status, remainingText: formatTime(state.remaining), elapsed, elapsedText: formatTime(elapsed), progress: 1 - state.remaining / Math.max(1, state.selectedMinutes * 60) }
-  if (!app.isPackaged) result.debugReminderBounds = { marquee: marqueeWindow?.getBounds(), image: imageWindow?.getBounds() }
+  if (!app.isPackaged) result.debugReminderBounds = { marquee: safeWindowBounds(marqueeWindow), image: safeWindowBounds(imageWindow) }
   return result
 }
+function isWindowUsable(win) {
+  return !!win && !win.isDestroyed() && !!win.webContents && !win.webContents.isDestroyed()
+}
+function safeWindowBounds(win) {
+  if (!win || win.isDestroyed()) return null
+  try { return win.getBounds() } catch { return null }
+}
+function sendWindowState(win, value) {
+  if (!isWindowUsable(win)) return
+  try { win.webContents.send('state', value) }
+  catch (error) { console.warn('Unable to broadcast to window:', error.message) }
+}
 function broadcast() {
-  const s = publicState(); hostWindow?.webContents.send('state', s); participantWindow?.webContents.send('state', s)
+  if (isQuitting) return
+  const s = publicState(); sendWindowState(hostWindow, s); sendWindowState(participantWindow, s)
   const needsFullScreen = s.reminder.effect === 'red' && !!s.reminder.timed
-  if (reminderWindow && needsFullScreen !== reminderEffectFullscreen) {
+  if (reminderWindow && !reminderWindow.isDestroyed() && needsFullScreen !== reminderEffectFullscreen) {
     reminderEffectFullscreen = needsFullScreen
     reminderEffectTransitioning = true
     reminderWindow.hide()
@@ -293,7 +308,10 @@ function broadcast() {
     setTimeout(() => { reminderEffectTransitioning=false; syncReminderVisibility() }, 60)
   }
   syncReminderVisibility()
-  for (const client of eventClients) client.write(`data: ${JSON.stringify(s)}\n\n`)
+  for (const client of eventClients) {
+    try { client.write(`data: ${JSON.stringify(s)}\n\n`) }
+    catch { eventClients.delete(client) }
+  }
   if (trayVisibilityItems.countdown) trayVisibilityItems.countdown.checked = state.showCountdown
   if (trayVisibilityItems.clock) trayVisibilityItems.clock.checked = state.showClock
   if (trayVisibilityItems.text) trayVisibilityItems.text.checked = state.showText
