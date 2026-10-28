@@ -1,9 +1,14 @@
 {
   "name": "zentime-docker",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "description": "ZenTime Docker server for QNAP, web displays, Companion and WiiM Pro",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "check": "node --check server.js" },
-  "engines": { "node": ">=22" }
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }
