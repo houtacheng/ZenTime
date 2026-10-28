@@ -10,6 +10,7 @@ const { autoUpdater } = require('electron-updater')
 let hostWindow, participantWindow, reminderWindow, temporaryWindow, marqueeWindow, imageWindow, reminderControlWindow, updateWindow, timer, reminderTimer, apiServer, tray
 let isQuitting = false
 let updateCheckManual = false, updateCheckRunning = false, updateDownloadRequested = false
+let participantPresentationFullscreen = false, participantRestoreBounds = null
 const eventClients = new Set()
 let reminderManual = null
 let reminderEffectFullscreen = false, reminderRestoreBounds = null, reminderEffectTransitioning = false
@@ -270,7 +271,7 @@ function reminderPresentation(elapsed) {
 function publicState() {
   const elapsed = Math.max(0, state.selectedMinutes * 60 - state.remaining)
   const reminderSeconds = reminderElapsed()
-  const result = { ...state, reminder: { ...state.reminder, elapsed: reminderSeconds, ...reminderPresentation(reminderSeconds) }, reminderPreview: Object.fromEntries(Object.entries(reminderPreviewUntil).map(([mode,until])=>[mode,Date.now()<until])), state: state.status, remainingText: formatTime(state.remaining), elapsed, elapsedText: formatTime(elapsed), progress: 1 - state.remaining / Math.max(1, state.selectedMinutes * 60) }
+  const result = { ...state, participantFullscreen: participantPresentationFullscreen, reminder: { ...state.reminder, elapsed: reminderSeconds, ...reminderPresentation(reminderSeconds) }, reminderPreview: Object.fromEntries(Object.entries(reminderPreviewUntil).map(([mode,until])=>[mode,Date.now()<until])), state: state.status, remainingText: formatTime(state.remaining), elapsed, elapsedText: formatTime(elapsed), progress: 1 - state.remaining / Math.max(1, state.selectedMinutes * 60) }
   if (!app.isPackaged) result.debugReminderBounds = { marquee: marqueeWindow?.getBounds(), image: imageWindow?.getBounds() }
   return result
 }
@@ -342,6 +343,7 @@ function dismissReminderWindow(win) {
 }
 function handleEscape() {
   const focused = BrowserWindow.getFocusedWindow()
+  if (focused === participantWindow && participantPresentationFullscreen) return toggleParticipantFullscreen()
   if (focused === reminderControlWindow) return hideAllReminders()
   if (!dismissReminderWindow(focused)) finish()
 }
@@ -370,9 +372,10 @@ function execute(name, value) {
     else participantWindow?.hide()
     broadcast()
   }
-  else if (name === 'toggleAlwaysOnTop') { state.alwaysOnTop = !state.alwaysOnTop; participantWindow?.setAlwaysOnTop(state.alwaysOnTop); broadcast() }
+  else if (name === 'toggleParticipantFullscreen') toggleParticipantFullscreen()
+  else if (name === 'toggleAlwaysOnTop') { state.alwaysOnTop = !state.alwaysOnTop; applyParticipantAlwaysOnTop(); broadcast() }
   else if (name === 'showReminderControl') showReminderControl()
-  else if (name === 'set') { Object.assign(state, value); if ('alwaysOnTop' in value) participantWindow?.setAlwaysOnTop(state.alwaysOnTop); broadcast() }
+  else if (name === 'set') { Object.assign(state, value); if ('alwaysOnTop' in value) applyParticipantAlwaysOnTop(); broadcast() }
   return publicState()
 }
 
@@ -392,7 +395,7 @@ function createWindows() {
   marqueeWindow = createReminder('marquee', 'ZenTime 跑馬燈提醒', { width: Math.min(900, work.width - 120), height: 320, x: work.x + 60, y: work.y + work.height - 380 })
   imageWindow = createReminder('image', 'ZenTime PNG 圖片提醒', { width: 420, height: 320, x: work.x + work.width - 500, y: work.y + 110 })
   hostWindow.loadFile(path.join(__dirname, 'host.html')); participantWindow.loadFile(path.join(__dirname, 'participant.html'))
-  participantWindow.setAlwaysOnTop(state.alwaysOnTop)
+  applyParticipantAlwaysOnTop()
   participantWindow.webContents.on('context-menu', () => showParticipantContextMenu())
   hostWindow.on('close', event => {
     if (!isQuitting) {
@@ -422,6 +425,28 @@ function showHostWindow() {
 function showParticipantWindow() {
   state.participantVisible = true
   participantWindow?.show(); participantWindow?.focus(); broadcast()
+}
+function applyParticipantAlwaysOnTop() {
+  if (!participantWindow || participantWindow.isDestroyed()) return
+  participantWindow.setAlwaysOnTop(participantPresentationFullscreen || state.alwaysOnTop, participantPresentationFullscreen ? 'screen-saver' : 'floating')
+}
+function toggleParticipantFullscreen() {
+  if (!participantWindow || participantWindow.isDestroyed()) return
+  windowDragSnapshot = null; windowResizeSnapshot = null
+  if (!participantPresentationFullscreen) {
+    participantRestoreBounds = participantWindow.getBounds()
+    const displayBounds = screen.getDisplayMatching(participantRestoreBounds).bounds
+    participantPresentationFullscreen = true
+    participantWindow.setBounds(displayBounds, false)
+    applyParticipantAlwaysOnTop()
+    participantWindow.show(); participantWindow.focus()
+  } else {
+    participantPresentationFullscreen = false
+    applyParticipantAlwaysOnTop()
+    if (participantRestoreBounds) participantWindow.setBounds(participantRestoreBounds, false)
+    participantRestoreBounds = null
+    participantWindow.show(); participantWindow.focus()
+  }
 }
 function quitApplication() { isQuitting = true; app.quit() }
 function showParticipantContextMenu() {
@@ -530,7 +555,7 @@ function installMenu() {
       { label: '顯示／隱藏主文字', click: () => execute('toggleText') },
       { label: '顯示／隱藏參與者畫面', click: () => execute('toggleParticipant') },
       { label: '切換參與者畫面永遠置頂', click: () => execute('toggleAlwaysOnTop') },
-      { type: 'separator' }, { label: '切換參與者全螢幕', accelerator: 'CmdOrCtrl+Shift+F', click: () => participantWindow?.setFullScreen(!participantWindow.isFullScreen()) }
+      { type: 'separator' }, { label: '切換參與者全螢幕', click: toggleParticipantFullscreen }
     ]},
     ...(process.platform === 'darwin' ? [] : [{ label: '說明', submenu: [{ label: '檢查更新…', click: () => checkForUpdates({ manual: true }) }] }])
   )
@@ -548,7 +573,7 @@ function startAPI() {
     if (staticFiles[url.pathname]) { const [file,type]=staticFiles[url.pathname]; res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'}); return require('fs').createReadStream(path.join(__dirname,file)).pipe(res) }
     if (url.pathname === '/api/fonts') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(await listLocalFontRecords())) }
     if (url.pathname === '/api/events') { res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store','Connection':'keep-alive','Access-Control-Allow-Origin':'*'}); eventClients.add(res); res.write(`data: ${JSON.stringify(publicState())}\n\n`); return req.on('close',()=>eventClients.delete(res)) }
-    const routes = { '/api/start': 'start', '/api/pause': 'pause', '/api/toggle': 'toggle', '/api/reset': 'reset', '/api/finish': 'finish', '/api/toggle-countdown': 'toggleCountdown', '/api/toggle-clock': 'toggleClock', '/api/toggle-text': 'toggleText', '/api/toggle-participant': 'toggleParticipant', '/api/toggle-always-on-top': 'toggleAlwaysOnTop' }
+    const routes = { '/api/start': 'start', '/api/pause': 'pause', '/api/toggle': 'toggle', '/api/reset': 'reset', '/api/finish': 'finish', '/api/toggle-countdown': 'toggleCountdown', '/api/toggle-clock': 'toggleClock', '/api/toggle-text': 'toggleText', '/api/toggle-participant': 'toggleParticipant', '/api/toggle-participant-fullscreen': 'toggleParticipantFullscreen', '/api/toggle-always-on-top': 'toggleAlwaysOnTop' }
     if (url.pathname === '/api/duration') execute('duration', Number(url.searchParams.get('minutes')))
     else if (routes[url.pathname]) execute(routes[url.pathname])
     else if (url.pathname === '/api/reminder/config') {
@@ -610,6 +635,7 @@ ipcMain.on('position:drag', (_e, target, position, phase) => {
   broadcast()
 })
 ipcMain.on('participant:window-drag', (_e, _point, phase) => {
+  if (participantPresentationFullscreen) return
   const cursor = screen.getCursorScreenPoint()
   const validPoint = cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)
   if (phase === 'begin' && validPoint && participantWindow) windowDragSnapshot = { point: cursor, bounds: participantWindow.getBounds() }
@@ -624,6 +650,7 @@ ipcMain.on('participant:window-drag', (_e, _point, phase) => {
   else if (phase === 'end') windowDragSnapshot = null
 })
 ipcMain.on('participant:window-resize', (_event, edge, _point, phase) => {
+  if (participantPresentationFullscreen) return
   const cursor = screen.getCursorScreenPoint()
   const validPoint = cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)
   if (phase === 'begin' && validPoint && participantWindow) {
@@ -648,7 +675,7 @@ ipcMain.on('participant:window-resize', (_event, edge, _point, phase) => {
   if (bounds.width < minWidth || bounds.height < minHeight) return
   try { participantWindow.setBounds(bounds, false) } catch (error) { console.warn('Ignored invalid participant resize:', bounds, error.message) }
 })
-ipcMain.on('participant:toggle-fullscreen', () => participantWindow?.setFullScreen(!participantWindow.isFullScreen()))
+ipcMain.on('participant:toggle-fullscreen', toggleParticipantFullscreen)
 ipcMain.on('reminder:window-drag', (event, point, phase) => {
   const win = BrowserWindow.fromWebContents(event.sender), key = event.sender.id
   if (!win) return
@@ -727,6 +754,7 @@ app.whenReady().then(() => {
   state.opening.file = builtInChime; state.closing.file = builtInChime
   loadDefaultSettings()
   startAPI(); createWindows(); installTray(); installMenu(); configureAutoUpdater(); broadcast()
+  if (!globalShortcut.register('CommandOrControl+Shift+F', toggleParticipantFullscreen)) console.warn('Unable to register participant fullscreen shortcut')
   reminderTimer = setInterval(broadcast, 250)
   setTimeout(() => checkForUpdates(), 2500)
 })
