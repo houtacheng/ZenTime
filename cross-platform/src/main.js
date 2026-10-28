@@ -437,11 +437,13 @@ function toggleParticipantFullscreen() {
     participantRestoreBounds = participantWindow.getBounds()
     const displayBounds = screen.getDisplayMatching(participantRestoreBounds).bounds
     participantPresentationFullscreen = true
-    participantWindow.setBounds(displayBounds, false)
+    if (process.platform === 'darwin') participantWindow.setSimpleFullScreen(true)
+    else participantWindow.setBounds(displayBounds, false)
     applyParticipantAlwaysOnTop()
     participantWindow.show(); participantWindow.focus()
   } else {
     participantPresentationFullscreen = false
+    if (process.platform === 'darwin') participantWindow.setSimpleFullScreen(false)
     applyParticipantAlwaysOnTop()
     if (participantRestoreBounds) participantWindow.setBounds(participantRestoreBounds, false)
     participantRestoreBounds = null
