@@ -1,0 +1,21 @@
+[Unit]
+Description=ZenTime Raspberry Pi web controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/opt/zentime
+Environment=PORT=4747
+Environment=DATA_DIR=/var/lib/zentime
+Environment=AUTO_DISCOVER=false
+ExecStart=/usr/bin/node /opt/zentime/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

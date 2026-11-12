@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ZenTime HDMI Kiosk
+Comment=Open the ZenTime participant display on HDMI
+Exec=/opt/zentime/raspberry-pi/zentime-kiosk.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

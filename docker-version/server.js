@@ -7,6 +7,7 @@ const os = require('os')
 const PORT = Number(process.env.PORT || 4747)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data')
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json')
+const MEDIA_DIR = path.join(DATA_DIR, 'media')
 const PUBLIC_DIR = path.join(__dirname, 'public')
 const presetMinutes = [3, 5, 7, 10, 15, 20]
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000)
@@ -22,8 +23,9 @@ const defaults = {
   showClock: false, clock24: false, clockSize: 50, clockFont: 'system-ui', clockPosition: { x: 50, y: 12 },
   showText: true, text: '靜心練習', textSize: 80, textFont: 'system-ui', textColor: '#ffffff', textPosition: { x: 50, y: 34 },
   showCountdown: true, countdownSize: 60, countdownFont: 'system-ui', countdownPosition: { x: 50, y: 73 },
+  progressPosition: { x: 50, y: 73 },
   progressStyle: 'ring', progressMode: 'fill', progressDirection: 'forward', progressSize: 25, progressStart: '#20d760', progressEnd: '#e4bd55',
-  background: '#000000', background2: '#17241d', gradient: false, backgroundImage: '',
+  background: '#000000', background2: '#17241d', gradient: false, backgroundImage: '', backgroundVideo: '',
   alwaysOnTop: false,
   silent: false, musicEnabled: false, musicMode: 'single',
   opening: { url: mediaUrl('磬聲.m4a'), volume: 30, fadeIn: true, fadeOut: true, duration: 8 },
@@ -46,6 +48,7 @@ const defaults = {
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
+fs.mkdirSync(MEDIA_DIR, { recursive: true })
 let state = structuredClone(defaults)
 // 這裡原本是空的 catch，設定載入失敗時會靜默退回預設值，事後完全查不出來
 try { state = deepMerge(state, JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))); console.log(`已載入設定 ${CONFIG_FILE}`) }
@@ -260,6 +263,61 @@ setInterval(monitorWiiM, 1500); startTick(); if(process.env.AUTO_DISCOVER!=='fal
 
 function json(res, value, status=200) { const body=JSON.stringify(value); res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Access-Control-Allow-Origin':'*'}); res.end(body) }
 function readJson(req) { return new Promise((resolve,reject)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{try{resolve(body?JSON.parse(body):{})}catch(e){reject(e)}});req.on('error',reject)}) }
+function uploadBackgroundVideo(req) {
+  return new Promise((resolve, reject) => {
+    const supplied = decodeURIComponent(String(req.headers['x-file-name'] || 'background.mp4'))
+    const ext = path.extname(supplied).toLowerCase()
+    const allowed = new Set(['.mp4', '.webm', '.mov', '.m4v'])
+    if (!allowed.has(ext)) return reject(new Error('只支援 MP4、WebM、MOV 或 M4V 影片'))
+    const contentLength = Number(req.headers['content-length'] || 0)
+    if (contentLength > 2 * 1024 * 1024 * 1024) return reject(new Error('影片檔案不可超過 2 GB'))
+    const temp = path.join(MEDIA_DIR, `background-upload-${process.pid}.tmp`)
+    const target = path.join(MEDIA_DIR, `background-video${ext}`)
+    let received = 0, settled = false
+    const output = fs.createWriteStream(temp, { flags: 'w' })
+    const fail = error => {
+      if (settled) return
+      settled = true
+      output.destroy()
+      fs.rm(temp, { force: true }, () => reject(error))
+    }
+    req.on('data', chunk => { received += chunk.length; if (received > 2 * 1024 * 1024 * 1024) fail(new Error('影片檔案不可超過 2 GB')) })
+    req.on('error', fail); output.on('error', fail)
+    output.on('finish', () => {
+      if (settled) return
+      settled = true
+      try {
+        for (const name of fs.readdirSync(MEDIA_DIR)) if (/^background-video\./.test(name)) fs.rmSync(path.join(MEDIA_DIR, name), { force: true })
+        fs.renameSync(temp, target)
+        resolve(`/media/${path.basename(target)}`)
+      } catch (error) { fs.rm(temp, { force: true }, () => reject(error)) }
+    })
+    req.pipe(output)
+  })
+}
+function serveMedia(req, res, pathname) {
+  if (!pathname.startsWith('/media/')) return false
+  const name = path.basename(decodeURIComponent(pathname.slice('/media/'.length)))
+  const file = path.join(MEDIA_DIR, name)
+  if (!file.startsWith(MEDIA_DIR + path.sep)) return false
+  let stats
+  try { stats = fs.statSync(file) } catch { return false }
+  if (!stats.isFile()) return false
+  const ext = path.extname(file).toLowerCase()
+  const type = { '.mp4':'video/mp4', '.m4v':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' }[ext] || 'application/octet-stream'
+  const range = req.headers.range
+  if (!range) {
+    res.writeHead(200, { 'Content-Type': type, 'Content-Length': stats.size, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' })
+    fs.createReadStream(file).pipe(res); return true
+  }
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range)
+  if (!match) { res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` }); res.end(); return true }
+  const start = match[1] ? Number(match[1]) : 0
+  const end = match[2] ? Math.min(Number(match[2]), stats.size - 1) : stats.size - 1
+  if (start > end || start >= stats.size) { res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` }); res.end(); return true }
+  res.writeHead(206, { 'Content-Type': type, 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${stats.size}`, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' })
+  fs.createReadStream(file, { start, end }).pipe(res); return true
+}
 function serveFile(req,res,pathname) {
   const routes={'/':'host.html','/host':'host.html','/display':'display.html','/control':'control.html','/reminder':'reminder.html','/reminder-control':'reminder-control.html'}
   let rel = routes[pathname]
@@ -291,6 +349,8 @@ async function api(req,res,url) {
     // 瀏覽器做不到作業系統層級的視窗置頂。這支保持存在只是為了不讓 Companion 收到 404
     // 而把整條連線標成失敗；狀態固定是 false，按鈕不會亮起來謊稱畫面已置頂。
     else if(p==='/api/toggle-always-on-top'){state.alwaysOnTop=false}
+    else if(p==='/api/background-video'&&req.method==='POST'){state.backgroundVideo=await uploadBackgroundVideo(req);state.backgroundImage='';save();broadcast()}
+    else if(p==='/api/background-video'&&req.method==='DELETE'){for(const name of fs.readdirSync(MEDIA_DIR))if(/^background-video\./.test(name))fs.rmSync(path.join(MEDIA_DIR,name),{force:true});state.backgroundVideo='';save();broadcast()}
     else if(p==='/api/config'&&req.method==='POST'){const previous=structuredClone(state);deepMerge(state,await readJson(req));save();broadcast();await reconcileAudio(previous);if(state.wiim.host!==previous.wiim.host&&state.wiim.host)discoverWiiM();}
     else if(p==='/api/reminder/config'&&req.method==='POST'){deepMerge(state.reminder,await readJson(req));save();broadcast()}
     else if(p==='/api/reminder/preview'){const body=req.method==='POST'?await readJson(req):{};if(body.mode in reminderPreviewUntil)reminderPreviewUntil[body.mode]=Date.now()+900;broadcast()}
@@ -310,7 +370,7 @@ async function api(req,res,url) {
     return json(res,publicState())
   } catch(error){return json(res,{error:error.message},500)}
 }
-const server=http.createServer((req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname.startsWith('/api/'))return api(req,res,url);if(!serveFile(req,res,url.pathname)){res.writeHead(404);res.end('Not found')}})
+const server=http.createServer((req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname.startsWith('/api/'))return api(req,res,url);if(!serveMedia(req,res,url.pathname)&&!serveFile(req,res,url.pathname)){res.writeHead(404);res.end('Not found')}})
 server.keepAliveTimeout = 65000
 server.headersTimeout = 70000
 // 監聽失敗必須直接結束行程，否則容器會「活著卻沒有在服務」，Docker 的 restart 也不會啟動
