@@ -71,6 +71,7 @@ function paint(s) {
   const fullRed = mode === 'timed' && r.timed?.effect === 'red'
   $('stage').classList.toggle('fullscreen-red', fullRed)
   $('stage').style.backgroundColor = fullRed ? colorAlpha(r.overlayColor, r.overlayOpacity) : ''
+  if (mode === 'timed') {
   const timed = $('timed')
   timed.className = `notice ${r.sameLine ? '' : 'column'}`
   timed.style.gap = `${r.gap}px`
@@ -102,7 +103,9 @@ function paint(s) {
   styleText($('previewText'), r.textStyle)
   styleText($('previewTime'), r.timeStyle)
   preview.hidden = mode !== 'timed' || !!r.timed
+  }
 
+  if (mode === 'temporary') {
   const temporary = $('temporary')
   temporary.textContent = r.temporary.text
   temporary.className = `temporary ${r.temporary.position}`
@@ -112,7 +115,9 @@ function paint(s) {
   temporary.style.setProperty('--fade-in', `${r.temporary.fadeInSeconds}s`)
   temporary.style.setProperty('--fade-out', `${r.temporary.fadeOutSeconds}s`)
   styleText(temporary, r.temporary.style)
+  }
 
+  if (mode === 'marquee') {
   const marquee = $('marquee')
   if ($('marqueeText').textContent !== r.marquee.text) $('marqueeText').textContent = r.marquee.text
   const vertical = r.marquee.layout === 'vertical'
@@ -143,7 +148,9 @@ function paint(s) {
     const extra = Math.max(r.marquee.style.glow ? r.marquee.style.glowSize * 2 : 0, r.marquee.style.stroke ? r.marquee.style.strokeWidth * 2 : 0)
     reportContentSize({ mode: 'marquee', layout: r.marquee.layout, thickness: Math.ceil(r.marquee.style.size * 1.55 + extra + 24) })
   }
+  }
 
+  if (mode === 'image') {
   const image = $('image')
   if (image.src !== (r.image.url || '')) image.src = r.image.url || ''
   const pulseScale = r.image.effect === 'pulse' ? 1 / 1.1 : 1
@@ -156,6 +163,7 @@ function paint(s) {
   imagePreview.textContent = r.image.url ? 'PNG 圖片預覽' : '尚未選擇 PNG 圖片'
   imagePreview.classList.toggle('preview', mode === 'image' && !r.imageVisible && !r.image.url)
   if (mode === 'image' && image.complete && image.naturalWidth) reportContentSize({ mode: 'image', naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, size: r.image.size, effect: r.image.effect })
+  }
 }
 
 new EventSource('/api/events').onmessage = event => paint(JSON.parse(event.data))

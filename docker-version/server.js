@@ -166,7 +166,7 @@ function tick() {
   if (timeDrivenActive()) return broadcast()
   if (sseClients.size && Date.now() - lastBroadcastAt >= HEARTBEAT_MS) broadcast()
 }
-function startTick() { clearInterval(tickTimer); tickTimer = setInterval(tick, 200) }
+function startTick() { clearInterval(tickTimer); tickTimer = setInterval(tick, 500) }
 
 function request(url, timeout = 1200) {
   return new Promise((resolve, reject) => {
