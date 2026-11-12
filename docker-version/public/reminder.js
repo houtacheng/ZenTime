@@ -9,6 +9,8 @@ $('hoverHint').textContent = `${modeNames[mode]} · 拖曳調整位置 · 滑鼠
 const modeElements = { timed: ['timed', 'timedPreview'], temporary: ['temporary'], marquee: ['marquee'], image: ['image', 'imagePreview'] }
 let lastContentSize = ''
 let latestMarquee = null
+let lastMarqueeMotion = ''
+let lastMarqueeStyle = ''
 function reportContentSize(payload) {
   const signature = JSON.stringify(payload)
   if (signature === lastContentSize) return
@@ -18,7 +20,10 @@ function reportContentSize(payload) {
 function syncMarqueeSpeed() {
   if (mode !== 'marquee' || !latestMarquee) return
   const span = $('marqueeText'), horizontalMotion = ['rtl', 'ltr'].includes(latestMarquee.direction)
-  const distance = horizontalMotion ? window.innerWidth + span.getBoundingClientRect().width : window.innerHeight + span.getBoundingClientRect().height
+  const signature = JSON.stringify([latestMarquee.direction, latestMarquee.speed, latestMarquee.text, latestMarquee.layout, latestMarquee.style.size, innerWidth, innerHeight, span.scrollWidth, span.scrollHeight])
+  if (signature === lastMarqueeMotion) return
+  lastMarqueeMotion = signature
+  const distance = horizontalMotion ? window.innerWidth + span.scrollWidth : window.innerHeight + span.scrollHeight
   $('marquee').style.setProperty('--duration', `${Math.max(.5, distance / Math.max(20, latestMarquee.speed))}s`)
   $('marquee').style.setProperty('--track-width', `${$('marquee').clientWidth}px`)
   $('marquee').style.setProperty('--track-height', `${$('marquee').clientHeight}px`)
@@ -109,25 +114,31 @@ function paint(s) {
   styleText(temporary, r.temporary.style)
 
   const marquee = $('marquee')
-  $('marqueeText').textContent = r.marquee.text
+  if ($('marqueeText').textContent !== r.marquee.text) $('marqueeText').textContent = r.marquee.text
   const vertical = r.marquee.layout === 'vertical'
   latestMarquee = r.marquee
-  marquee.className = `marquee ${embedded ? 'positioned' : ''} ${vertical ? 'vertical' : 'horizontal'} ${r.marquee.direction}`
+  const marqueeClasses = ['marquee', embedded ? 'positioned' : '', vertical ? 'vertical' : 'horizontal', r.marquee.direction]
+  if (mode === 'marquee' && r.marqueePhase) marqueeClasses.push('active', r.marqueePhase)
+  if (mode === 'marquee' && !r.marquee.active) marqueeClasses.push('preview')
+  const marqueeClassName = marqueeClasses.filter(Boolean).join(' ')
+  if (marquee.className !== marqueeClassName) marquee.className = marqueeClassName
   const marqueePosition = r.marquee.screenPosition || { x: 50, y: 82 }
-  marquee.style.setProperty('--marquee-x', `${marqueePosition.x}%`)
-  marquee.style.setProperty('--marquee-y', `${marqueePosition.y}%`)
-  marquee.style.setProperty('--marquee-width', `${r.marquee.width ?? 80}%`)
-  marquee.style.setProperty('--marquee-height', `${r.marquee.height ?? 14}%`)
-  if (mode === 'marquee' && r.marqueePhase) marquee.classList.add('active', r.marqueePhase)
-  marquee.classList.toggle('preview', mode === 'marquee' && !r.marquee.active)
   const marqueeBackground = colorAlpha(r.marquee.background, r.marquee.opacity)
-  marquee.style.backgroundColor = marqueeBackground
-  $('marqueeBar').style.backgroundColor = marqueeBackground
-  marquee.style.setProperty('--marquee-background', marqueeBackground)
-  marquee.style.setProperty('--fade-in', `${r.marquee.fadeInSeconds}s`)
-  marquee.style.setProperty('--fade-out', `${r.marquee.fadeOutSeconds}s`)
-  styleText($('marqueeText'), r.marquee.style)
-  requestAnimationFrame(syncMarqueeSpeed)
+  const marqueeStyleSignature = JSON.stringify([marqueePosition, r.marquee.width, r.marquee.height, marqueeBackground, r.marquee.fadeInSeconds, r.marquee.fadeOutSeconds, r.marquee.style, r.marquee.layout, r.marquee.direction, r.marquee.speed, r.marquee.text])
+  if (marqueeStyleSignature !== lastMarqueeStyle) {
+    lastMarqueeStyle = marqueeStyleSignature; lastMarqueeMotion = ''
+    marquee.style.setProperty('--marquee-x', `${marqueePosition.x}%`)
+    marquee.style.setProperty('--marquee-y', `${marqueePosition.y}%`)
+    marquee.style.setProperty('--marquee-width', `${r.marquee.width ?? 80}%`)
+    marquee.style.setProperty('--marquee-height', `${r.marquee.height ?? 14}%`)
+    marquee.style.backgroundColor = marqueeBackground
+    $('marqueeBar').style.backgroundColor = marqueeBackground
+    marquee.style.setProperty('--marquee-background', marqueeBackground)
+    marquee.style.setProperty('--fade-in', `${r.marquee.fadeInSeconds}s`)
+    marquee.style.setProperty('--fade-out', `${r.marquee.fadeOutSeconds}s`)
+    styleText($('marqueeText'), r.marquee.style)
+    requestAnimationFrame(syncMarqueeSpeed)
+  }
   if (mode === 'marquee') {
     const extra = Math.max(r.marquee.style.glow ? r.marquee.style.glowSize * 2 : 0, r.marquee.style.stroke ? r.marquee.style.strokeWidth * 2 : 0)
     reportContentSize({ mode: 'marquee', layout: r.marquee.layout, thickness: Math.ceil(r.marquee.style.size * 1.55 + extra + 24) })
@@ -152,4 +163,4 @@ fetch('/api/state').then(response => response.json()).then(paint)
 $('stage').onmouseenter = () => $('stage').classList.add('hovered')
 $('stage').onmouseleave = () => $('stage').classList.remove('hovered')
 $('image').onload = () => { if (mode === 'image' && $('image').naturalWidth) fetch('/api/state').then(response => response.json()).then(s => reportContentSize({ mode: 'image', naturalWidth: $('image').naturalWidth, naturalHeight: $('image').naturalHeight, size: s.reminder.image.size, effect: s.reminder.image.effect })) }
-window.addEventListener('resize', () => requestAnimationFrame(syncMarqueeSpeed))
+window.addEventListener('resize', () => { lastMarqueeMotion = ''; requestAnimationFrame(syncMarqueeSpeed) })
