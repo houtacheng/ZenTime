@@ -147,6 +147,7 @@ function paint(s) {
   valueLabel('marqueeSpeed')
   set('marqueeWidth', r.marquee.width ?? 80); set('marqueeHeight', r.marquee.height ?? 14); valueLabel('marqueeWidth', '%'); valueLabel('marqueeHeight', '%')
   set('imageSize', r.image.size)
+  set('imageDuration', r.image.durationSeconds ?? 10); set('imageEffect', r.image.effect || 'fade'); set('imageDisplayMode', r.image.autoHide ? 'auto' : 'persistent'); $('imageDuration').disabled = !r.image.autoHide
   valueLabel('imageSize', '%')
   set('tempText', r.temporary.text);set('tempPosition',r.temporary.position);set('tempDuration',r.temporary.durationSeconds)
   for(const key of ['Font','Size','Color','StrokeWidth','StrokeColor','GlowColor','GlowSize'])set('temp'+key,r.temporary.style[key[0].toLowerCase()+key.slice(1)])
@@ -235,7 +236,9 @@ $('imageFile').onchange = () => {
 $('imageShow').onclick = () => {
   const url = state.reminder.image.url
   if (!url) return alert('請先選擇 PNG 圖片')
-  api('/api/reminder/image/show', { url, size: Number($('imageSize').value), durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value, screenPosition:state?.reminder.image.screenPosition||{x:50,y:50} }).catch(alert)
+  api('/api/reminder/image/show', { url, size: Number($('imageSize').value), autoHide:$('imageDisplayMode').value === 'auto', durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value, screenPosition:state?.reminder.image.screenPosition||{x:50,y:50} }).catch(alert)
 }
+$('imageDisplayMode').onchange = () => { const autoHide = $('imageDisplayMode').value === 'auto'; $('imageDuration').disabled = !autoHide; api('/api/reminder/config', { image: { autoHide, durationSeconds: Number($('imageDuration').value) } }).catch(console.error) }
+$('imageDuration').onchange = () => api('/api/reminder/config', { image: { durationSeconds: Number($('imageDuration').value) } }).catch(console.error)
 $('imageHide').onclick = () => api('/api/reminder/image/hide').catch(alert)
 $('hideAll').onclick = () => api('/api/reminder/hide-all').catch(alert)

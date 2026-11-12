@@ -43,7 +43,7 @@ const defaults = {
     manualResetsInterval: false,
     temporary: { active: false, text: '請保持安靜', durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', screenPosition: { x: 50, y: 50 }, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', screenPosition: { x: 50, y: 82 }, width: 80, height: 14, background: '#000000', opacity: 0.55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
-    image: { active: false, url: '', size: 30, durationSeconds: 10, startedAt: null, effect: 'fade', screenPosition: { x: 50, y: 50 } },
+    image: { active: false, url: '', size: 30, autoHide: false, durationSeconds: 10, startedAt: null, effect: 'fade', screenPosition: { x: 50, y: 50 } },
   },
 }
 
@@ -119,7 +119,7 @@ function reminderPresentation(elapsed) {
   const mq=r.marquee,mqStopping=mq.stoppingAt?(now-mq.stoppingAt)/1000:null
   let marqueePhase=null
   if(mq.active){if(mqStopping!==null)marqueePhase=mqStopping<(mq.fadeOut?mq.fadeOutSeconds:0)?'fadeOut':null;else if(mq.fadeIn&&mq.startedAt&&(now-mq.startedAt)/1000<mq.fadeInSeconds)marqueePhase='fadeIn';else marqueePhase='effect';if(!marqueePhase){mq.active=false;mq.stoppingAt=null}}
-  const image = r.image.active && (!r.image.startedAt || now-r.image.startedAt < r.image.durationSeconds*1000)
+  const image = r.image.active && (!r.image.autoHide || !r.image.startedAt || now-r.image.startedAt < r.image.durationSeconds*1000)
   if (r.image.active && !image) r.image.active=false
   const nextDue = Math.ceil(Math.max(1,elapsed)/interval)*interval
   return { elapsed, elapsedText:formatTime(elapsed), timeText:reminderTimeText(elapsed), nextIn:Math.max(0,nextDue-elapsed), nextText:formatTime(Math.max(0,nextDue-elapsed)), timed, temporaryVisible:temporary, temporaryPhase, marqueePhase, imageVisible:image }

@@ -122,6 +122,7 @@ function paint(s) {
   marquee.classList.toggle('preview', mode === 'marquee' && !r.marquee.active)
   const marqueeBackground = colorAlpha(r.marquee.background, r.marquee.opacity)
   marquee.style.backgroundColor = marqueeBackground
+  $('marqueeBar').style.backgroundColor = marqueeBackground
   marquee.style.setProperty('--marquee-background', marqueeBackground)
   marquee.style.setProperty('--fade-in', `${r.marquee.fadeInSeconds}s`)
   marquee.style.setProperty('--fade-out', `${r.marquee.fadeOutSeconds}s`)
