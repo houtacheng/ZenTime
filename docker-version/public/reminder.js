@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id)
 const mode = new URLSearchParams(location.search).get('mode') || 'timed'
+const embedded = new URLSearchParams(location.search).get('embedded') === '1'
 const modeNames = { timed: '定時提醒', temporary: '臨時文字提醒', marquee: '跑馬燈提醒', image: 'PNG 圖片提醒' }
 document.body.dataset.mode = mode
 $('hoverHint').textContent = `${modeNames[mode]} · 拖曳調整位置 · 滑鼠離開後隱藏預覽`
@@ -54,6 +55,8 @@ function colorAlpha(hex, alpha) {
 
 function paint(s) {
   const r = s.reminder
+  const enabled = { timed: r.timedEnabled, temporary: r.temporaryEnabled, marquee: r.marqueeEnabled, image: r.imageEnabled }[mode]
+  document.documentElement.style.visibility = enabled ? 'visible' : 'hidden'
   const controlPreview = !!s.reminderPreview?.[mode]
   $('stage').classList.toggle('control-preview', controlPreview)
   const fullRed = mode === 'timed' && r.timed?.effect === 'red'
@@ -114,8 +117,8 @@ function paint(s) {
   const image = $('image')
   if (image.src !== (r.image.url || '')) image.src = r.image.url || ''
   const pulseScale = r.image.effect === 'pulse' ? 1 / 1.1 : 1
-  image.style.width = `${pulseScale * 100}%`
-  image.style.height = `${pulseScale * 100}%`
+  image.style.width = embedded ? `${pulseScale * r.image.size}vw` : `${pulseScale * 100}%`
+  image.style.height = embedded ? `${pulseScale * r.image.size}vh` : `${pulseScale * 100}%`
   image.className = mode === 'image' && r.imageVisible ? `active ${r.image.effect === 'pulse' ? 'pulse' : ''}` : ''
   if (mode === 'image' && r.image.url && !r.imageVisible) image.classList.add('preview')
   const imagePreview = $('imagePreview')

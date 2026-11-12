@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 
-URL="http://127.0.0.1:4747/display"
+URL="http://127.0.0.1:4747/display?reminders=1"
 for _ in $(seq 1 60); do
   if curl --silent --fail --max-time 1 http://127.0.0.1:4747/api/health >/dev/null; then
     break

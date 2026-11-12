@@ -5,7 +5,7 @@
 <section class="panel">
   <h2>參與者畫面</h2>
   <div class="grid grid2"><label><input id="showClock" type="checkbox"> 顯示現在時間</label><label><input id="clock24" type="checkbox"> 24 小時制</label><label><input id="showText" type="checkbox"> 顯示主文字</label><label><input id="showCountdown" type="checkbox"> 顯示倒數</label></div>
-  <div class="field"><label>主文字</label><input id="text"></div>
+  <div class="grid grid2"><div class="field"><label>主文字</label><input id="text"></div><div class="field"><label>主文字顏色</label><input id="textColor" type="color"></div></div>
   <div class="grid grid2"><div class="field"><label>主文字字體</label><input id="textFont" list="fonts"><datalist id="fonts"></datalist></div><div class="field"><label>倒數字體</label><input id="countdownFont" list="fonts"></div></div>
   <div class="grid grid3 size-grid">
     <div class="field"><label>現在時間大小 <output id="clockSizeValue">50 px</output></label><input id="clockSize" type="range" min="12" max="300" step="1"></div>
