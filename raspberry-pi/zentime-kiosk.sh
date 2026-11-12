@@ -12,6 +12,11 @@ done
 # 專用 HDMI 顯示不需要桌面面板；關閉面板可避免系統更新通知覆蓋活動畫面。
 pkill lxpanel-pi 2>/dev/null || true
 
+# 活動現場必須持續輸出：停用 X11 螢幕保護、畫面空白與 DPMS 自動關閉。
+xset s off
+xset s noblank
+xset -dpms
+
 # Raspberry Pi 的 /usr/bin/chromium 包裝器會自動載入桌面擴充功能，
 # 其中的翻譯提示會覆蓋 HDMI 畫面；直接啟動 Chromium 主程式可保持 kiosk 乾淨。
 exec /usr/lib/chromium/chromium \
