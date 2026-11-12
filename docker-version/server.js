@@ -49,10 +49,24 @@ const defaults = {
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
 fs.mkdirSync(MEDIA_DIR, { recursive: true })
+function storeReminderDataUrl(value) {
+  const match = /^data:image\/png;base64,([a-z0-9+/=\s]+)$/i.exec(String(value || ''))
+  if (!match) return value
+  const data = Buffer.from(match[1].replace(/\s/g, ''), 'base64')
+  if (data.length > 50 * 1024 * 1024) throw new Error('PNG 圖片不可超過 50 MB')
+  if (data.length < 8 || data.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('圖片不是有效的 PNG 檔案')
+  fs.writeFileSync(path.join(MEDIA_DIR, 'reminder-image.png'), data)
+  return `/media/reminder-image.png?v=${Date.now()}`
+}
 let state = structuredClone(defaults)
 // 這裡原本是空的 catch，設定載入失敗時會靜默退回預設值，事後完全查不出來
 try { state = deepMerge(state, JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))); console.log(`已載入設定 ${CONFIG_FILE}`) }
 catch (error) { if (error.code !== 'ENOENT') console.error(`設定載入失敗，改用預設值：${error.message}`); else console.log('尚無設定檔，使用預設值') }
+let migratedReminderImage = false
+if (String(state.reminder.image.url || '').startsWith('data:image/png;base64,')) {
+  try { state.reminder.image.url = storeReminderDataUrl(state.reminder.image.url); migratedReminderImage = true; console.log('已將 PNG 提醒圖片轉存為獨立檔案') }
+  catch (error) { console.error(`PNG 提醒圖片轉存失敗：${error.message}`) }
+}
 state.selectedMinutes = safeMinutes(state.selectedMinutes, defaults.selectedMinutes)
 state.status = 'ready'; state.remaining = state.selectedMinutes * 60; state.startedAt = null; state.pausedAt = null
 state.reminder.status = 'idle'; state.reminder.elapsed = 0; state.reminder.startedAt = null; state.reminder.temporary.active = false; state.reminder.image.active = false
@@ -123,6 +137,7 @@ function save() {
   try { fs.writeFileSync(temp, JSON.stringify(copy, null, 2)); fs.renameSync(temp, CONFIG_FILE) }
   catch (error) { console.error('儲存設定失敗：', error.message) }
 }
+if (migratedReminderImage) save()
 let lastBroadcastAt = 0
 function broadcast() {
   lastBroadcastAt = Date.now()
@@ -297,6 +312,27 @@ function uploadBackgroundVideo(req) {
     req.pipe(output)
   })
 }
+function uploadReminderImage(req) {
+  return new Promise((resolve, reject) => {
+    if (req.headers['content-type'] !== 'image/png') return reject(new Error('只支援 PNG 圖片'))
+    const limit = 50 * 1024 * 1024, temp = path.join(MEDIA_DIR, `reminder-image-${process.pid}.tmp`), target = path.join(MEDIA_DIR, 'reminder-image.png')
+    let received = 0, settled = false
+    const output = fs.createWriteStream(temp, { flags: 'w' })
+    const fail = error => { if (settled) return; settled = true; output.destroy(); fs.rm(temp, { force: true }, () => reject(error)) }
+    req.on('data', chunk => { received += chunk.length; if (received > limit) fail(new Error('PNG 圖片不可超過 50 MB')) })
+    req.on('error', fail); output.on('error', fail)
+    output.on('finish', () => {
+      if (settled) return
+      settled = true
+      try {
+        const signature = Buffer.alloc(8), fd = fs.openSync(temp, 'r'); fs.readSync(fd, signature, 0, 8, 0); fs.closeSync(fd)
+        if (signature.toString('hex') !== '89504e470d0a1a0a') throw new Error('圖片不是有效的 PNG 檔案')
+        fs.renameSync(temp, target); resolve(`/media/reminder-image.png?v=${Date.now()}`)
+      } catch (error) { fs.rm(temp, { force: true }, () => reject(error)) }
+    })
+    req.pipe(output)
+  })
+}
 function serveMedia(req, res, pathname) {
   if (!pathname.startsWith('/media/')) return false
   const name = path.basename(decodeURIComponent(pathname.slice('/media/'.length)))
@@ -306,7 +342,7 @@ function serveMedia(req, res, pathname) {
   try { stats = fs.statSync(file) } catch { return false }
   if (!stats.isFile()) return false
   const ext = path.extname(file).toLowerCase()
-  const type = { '.mp4':'video/mp4', '.m4v':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime' }[ext] || 'application/octet-stream'
+  const type = { '.mp4':'video/mp4', '.m4v':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime', '.png':'image/png' }[ext] || 'application/octet-stream'
   const range = req.headers.range
   if (!range) {
     res.writeHead(200, { 'Content-Type': type, 'Content-Length': stats.size, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' })
@@ -354,7 +390,8 @@ async function api(req,res,url) {
     else if(p==='/api/background-video'&&req.method==='POST'){state.backgroundVideo=await uploadBackgroundVideo(req);state.backgroundImage='';save();broadcast()}
     else if(p==='/api/background-video'&&req.method==='DELETE'){for(const name of fs.readdirSync(MEDIA_DIR))if(/^background-video\./.test(name))fs.rmSync(path.join(MEDIA_DIR,name),{force:true});state.backgroundVideo='';save();broadcast()}
     else if(p==='/api/config'&&req.method==='POST'){const previous=structuredClone(state);deepMerge(state,await readJson(req));save();broadcast();await reconcileAudio(previous);if(state.wiim.host!==previous.wiim.host&&state.wiim.host)discoverWiiM();}
-    else if(p==='/api/reminder/config'&&req.method==='POST'){deepMerge(state.reminder,await readJson(req));save();broadcast()}
+    else if(p==='/api/reminder/config'&&req.method==='POST'){const body=await readJson(req);if(body.image?.url)body.image.url=storeReminderDataUrl(body.image.url);deepMerge(state.reminder,body);save();broadcast()}
+    else if(p==='/api/reminder/image-file'&&req.method==='POST'){state.reminder.image.url=await uploadReminderImage(req);save();broadcast()}
     else if(p==='/api/reminder/preview'){const body=req.method==='POST'?await readJson(req):{};if(body.mode in reminderPreviewUntil)reminderPreviewUntil[body.mode]=Date.now()+900;broadcast()}
     else if(p==='/api/reminder/start'){const r=state.reminder;if(r.status==='paused'){r.status='running';r.startedAt=Date.now()}else{r.status='running';r.elapsed=0;r.startedAt=Date.now()}broadcast()}
     else if(p==='/api/reminder/pause'){const r=state.reminder;if(r.status==='running'){r.elapsed=reminderElapsed();r.startedAt=null;r.status='paused'}broadcast()}
@@ -365,7 +402,7 @@ async function api(req,res,url) {
     else if(p==='/api/reminder/temp/hide'){const t=state.reminder.temporary;if(t.active&&t.fadeOut)t.stoppingAt=Date.now();else t.active=false;broadcast()}
     else if(p==='/api/reminder/marquee/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.marquee,body);state.reminder.marquee.active=true;state.reminder.marquee.startedAt=Date.now();state.reminder.marquee.stoppingAt=null;save();broadcast()}
     else if(p==='/api/reminder/marquee/hide'){const m=state.reminder.marquee;if(m.active&&m.fadeOut)m.stoppingAt=Date.now();else m.active=false;save();broadcast()}
-    else if(p==='/api/reminder/image/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.image,body);state.reminder.image.active=true;state.reminder.image.startedAt=Date.now();broadcast()}
+    else if(p==='/api/reminder/image/show'){const body=req.method==='POST'?await readJson(req):{};if(body.url)body.url=storeReminderDataUrl(body.url);deepMerge(state.reminder.image,body);state.reminder.image.active=true;state.reminder.image.startedAt=Date.now();broadcast()}
     else if(p==='/api/reminder/image/hide'){state.reminder.image.active=false;broadcast()}
     else if(p==='/api/reminder/hide-all'){reminderManual=null;state.reminder.temporary.active=false;state.reminder.marquee.active=false;state.reminder.image.active=false;broadcast()}
     else if(p==='/api/wiim/discover'){await discoverWiiM(true)} else if(p==='/api/wiim/test'){await wiimCommand('getPlayerStatus')}

@@ -1,6 +1,5 @@
 const $ = id => document.getElementById(id)
 let state
-let imageData = ''
 const positionDefinitions = [
   ['timed', 'timedPositionControls', '定時提醒位置'],
   ['temporary', 'temporaryPositionControls', '臨時提醒位置'],
@@ -227,15 +226,14 @@ $('imageFile').onchange = () => {
   const file = $('imageFile').files[0]
   if (!file) return
   if (file.type !== 'image/png') return alert('請選擇 PNG 檔')
-  const reader = new FileReader()
-  reader.onload = () => {
-    imageData = reader.result
-    api('/api/reminder/config', { image: { url: imageData, size: Number($('imageSize').value) } }).catch(alert)
-  }
-  reader.readAsDataURL(file)
+  fetch('/api/reminder/image-file', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: file }).then(async response => {
+    const result = await response.json()
+    if (!response.ok) throw Error(result.error || response.status)
+    paint(result)
+  }).catch(error => alert(error.message))
 }
 $('imageShow').onclick = () => {
-  const url = imageData || state.reminder.image.url
+  const url = state.reminder.image.url
   if (!url) return alert('請先選擇 PNG 圖片')
   api('/api/reminder/image/show', { url, size: Number($('imageSize').value), durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value, screenPosition:state?.reminder.image.screenPosition||{x:50,y:50} }).catch(alert)
 }
