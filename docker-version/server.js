@@ -36,14 +36,14 @@ const defaults = {
     timedEnabled: true, temporaryEnabled: true, marqueeEnabled: true, imageEnabled: true,
     boundToMeditation: false, status: 'idle', elapsed: 0, startedAt: null,
     intervalMinutes: 10, durationSeconds: 10, fadeInSeconds: 3, fadeOutSeconds: 2,
-    text: '已進行', showTime: true, timeFormat: 'minutes', sameLine: true, gap: 16,
+    text: '已進行', showTime: true, timeFormat: 'minutes', sameLine: true, gap: 16, position: { x: 50, y: 50 },
     effect: 'blinkZoom', overlayColor: '#b40000', overlayOpacity: 0.45,
     textStyle: { font: 'system-ui', size: 72, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     timeStyle: { font: 'system-ui', size: 64, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     manualResetsInterval: false,
-    temporary: { active: false, text: '請保持安靜', durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
-    marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', background: '#000000', opacity: 0.55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
-    image: { active: false, url: '', size: 30, durationSeconds: 10, startedAt: null, effect: 'fade' },
+    temporary: { active: false, text: '請保持安靜', durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', screenPosition: { x: 50, y: 50 }, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
+    marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', screenPosition: { x: 50, y: 82 }, width: 80, height: 14, background: '#000000', opacity: 0.55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
+    image: { active: false, url: '', size: 30, durationSeconds: 10, startedAt: null, effect: 'fade', screenPosition: { x: 50, y: 50 } },
   },
 }
 
@@ -58,6 +58,7 @@ state.status = 'ready'; state.remaining = state.selectedMinutes * 60; state.star
 state.reminder.status = 'idle'; state.reminder.elapsed = 0; state.reminder.startedAt = null; state.reminder.temporary.active = false; state.reminder.image.active = false
 let sseClients = new Set(), tickTimer, openingTimer, fadeTimer, audioPhase = 'idle', musicIndex = 0, lastReplayAt = 0
 let reminderManual = null
+let reminderTimedHiddenUntil = 0
 const reminderPreviewUntil = { timed: 0, temporary: 0, marquee: 0, image: 0 }
 
 function deepMerge(target, source) {
@@ -96,6 +97,7 @@ function reminderPresentation(elapsed) {
     const offset=(now-reminderManual.effectAt)/1000
     timed={kind:'manual',phase:offset<0?'fadeIn':offset<=r.durationSeconds?'effect':'fadeOut',progress:offset,text:r.text,timeText:reminderTimeText(elapsed),effect:r.effect}
   } else if (reminderManual) reminderManual=null
+  if (now < reminderTimedHiddenUntil) timed = null
   const tempElapsed=r.temporary.startedAt?(now-r.temporary.startedAt)/1000:0,tempIn=r.temporary.fadeIn?r.temporary.fadeInSeconds:0,tempOut=r.temporary.fadeOut?r.temporary.fadeOutSeconds:0,tempStopping=r.temporary.stoppingAt?(now-r.temporary.stoppingAt)/1000:null
   let temporaryPhase=null
   if(r.temporary.active){if(tempStopping!==null)temporaryPhase=tempStopping<tempOut?'fadeOut':null;else if(tempElapsed<tempIn)temporaryPhase='fadeIn';else if(tempElapsed<tempIn+r.temporary.durationSeconds)temporaryPhase='effect';else if(tempElapsed<tempIn+r.temporary.durationSeconds+tempOut)temporaryPhase='fadeOut';if(!temporaryPhase){r.temporary.active=false;r.temporary.stoppingAt=null}}
@@ -357,7 +359,8 @@ async function api(req,res,url) {
     else if(p==='/api/reminder/start'){const r=state.reminder;if(r.status==='paused'){r.status='running';r.startedAt=Date.now()}else{r.status='running';r.elapsed=0;r.startedAt=Date.now()}broadcast()}
     else if(p==='/api/reminder/pause'){const r=state.reminder;if(r.status==='running'){r.elapsed=reminderElapsed();r.startedAt=null;r.status='paused'}broadcast()}
     else if(p==='/api/reminder/reset'){const r=state.reminder;r.status='idle';r.elapsed=0;r.startedAt=null;reminderManual=null;broadcast()}
-    else if(p==='/api/reminder/trigger'){const now=Date.now(),r=state.reminder;reminderManual={effectAt:now+r.fadeInSeconds*1000,hideAt:now+(r.fadeInSeconds+r.durationSeconds+r.fadeOutSeconds)*1000};if(r.manualResetsInterval&&!r.boundToMeditation){r.elapsed=0;r.startedAt=now}broadcast()}
+    else if(p==='/api/reminder/trigger'){const now=Date.now(),r=state.reminder;reminderTimedHiddenUntil=0;reminderManual={effectAt:now+r.fadeInSeconds*1000,hideAt:now+(r.fadeInSeconds+r.durationSeconds+r.fadeOutSeconds)*1000};if(r.manualResetsInterval&&!r.boundToMeditation){r.elapsed=0;r.startedAt=now}broadcast()}
+    else if(p==='/api/reminder/timed/hide'){const r=state.reminder;reminderManual=null;reminderTimedHiddenUntil=Date.now()+(r.fadeInSeconds+r.durationSeconds+r.fadeOutSeconds)*1000;broadcast()}
     else if(p==='/api/reminder/temp/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.temporary,body);state.reminder.temporary.active=true;state.reminder.temporary.startedAt=Date.now();state.reminder.temporary.stoppingAt=null;broadcast()}
     else if(p==='/api/reminder/temp/hide'){const t=state.reminder.temporary;if(t.active&&t.fadeOut)t.stoppingAt=Date.now();else t.active=false;broadcast()}
     else if(p==='/api/reminder/marquee/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.marquee,body);state.reminder.marquee.active=true;state.reminder.marquee.startedAt=Date.now();state.reminder.marquee.stoppingAt=null;save();broadcast()}

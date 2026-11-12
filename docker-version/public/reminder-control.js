@@ -1,6 +1,31 @@
 const $ = id => document.getElementById(id)
 let state
 let imageData = ''
+const positionDefinitions = [
+  ['timed', 'timedPositionControls', '定時提醒位置'],
+  ['temporary', 'temporaryPositionControls', '臨時提醒位置'],
+  ['marquee', 'marqueePositionControls', '跑馬燈位置'],
+  ['image', 'imagePositionControls', '圖片位置'],
+]
+const positionControls = new Map()
+for (const [mode, containerId, label] of positionDefinitions) {
+  const container = $(containerId), controls = {}
+  container.setAttribute('aria-label', label)
+  for (const axis of ['x', 'y']) {
+    const row = document.createElement('label'), name = document.createElement('span'), input = document.createElement('input'), output = document.createElement('output')
+    name.textContent = axis.toUpperCase(); input.type = 'range'; input.className = 'position-slider'; input.min = '0'; input.max = '100'; input.step = '1'
+    row.append(name, input, output); container.append(row); controls[axis] = { input, output }
+    input.oninput = () => {
+      const current = mode === 'timed' ? state.reminder.position : state.reminder[mode].screenPosition
+      const position = { ...(current || { x: 50, y: 50 }), [axis]: Number(input.value) }
+      output.value = `${input.value}%`
+      const body = mode === 'timed' ? { position } : { [mode]: { screenPosition: position } }
+      api('/api/reminder/config', body).catch(console.error)
+      api('/api/reminder/preview', { mode }).catch(console.error)
+    }
+  }
+  positionControls.set(mode, controls)
+}
 document.querySelector('.links')?.remove()
 document.getElementById('fonts')?.remove()
 $('marqueePosition')?.remove()
@@ -94,6 +119,10 @@ function paint(s) {
   $('rElapsed').textContent = r.elapsedText
   $('rNext').textContent = r.nextText
   for (const id of ['timedEnabled', 'temporaryEnabled', 'marqueeEnabled', 'imageEnabled']) check(id, r[id])
+  for (const [mode, controls] of positionControls) {
+    const position = mode === 'timed' ? r.position : r[mode].screenPosition
+    for (const axis of ['x', 'y']) { if (document.activeElement !== controls[axis].input) controls[axis].input.value = position?.[axis] ?? 50; controls[axis].output.value = `${Math.round(position?.[axis] ?? 50)}%` }
+  }
   check('boundToMeditation', r.boundToMeditation)
   check('manualResetsInterval', r.manualResetsInterval)
   const preset = [5, 10, 15, 30].includes(r.intervalMinutes)
@@ -117,6 +146,7 @@ function paint(s) {
   if (document.activeElement !== $('marqueeDirection')) updateDirectionOptions(r.marquee.direction)
   set('marqueeSpeed', r.marquee.speed)
   valueLabel('marqueeSpeed')
+  set('marqueeWidth', r.marquee.width ?? 80); set('marqueeHeight', r.marquee.height ?? 14); valueLabel('marqueeWidth', '%'); valueLabel('marqueeHeight', '%')
   set('imageSize', r.image.size)
   valueLabel('imageSize', '%')
   set('tempText', r.temporary.text);set('tempPosition',r.temporary.position);set('tempDuration',r.temporary.durationSeconds)
@@ -135,7 +165,7 @@ function config() {
     intervalMinutes: Number($('intervalPreset').value === 'custom' ? $('intervalMinutes').value : $('intervalPreset').value),
     durationSeconds: Number($('durationSeconds').value), fadeInSeconds: Number($('fadeInSeconds').value), fadeOutSeconds: Number($('fadeOutSeconds').value),
     text: $('rText').value, showTime: $('showTime').checked, timeFormat: $('timeFormat').value, sameLine: $('sameLine').checked, gap: Number($('gap').value),
-    effect: $('effect').value, overlayColor: $('overlayColor').value, overlayOpacity: Number($('overlayOpacity').value), textStyle: style('text'), timeStyle: style('time'),
+    effect: $('effect').value, overlayColor: $('overlayColor').value, overlayOpacity: Number($('overlayOpacity').value), textStyle: style('text'), timeStyle: style('time'), position: state?.reminder.position || { x: 50, y: 50 },
   }
 }
 
@@ -160,7 +190,7 @@ $('intervalMinutes').addEventListener('input', () => {
   $('intervalPreset').value = 'custom'
   saveConfigSoon()
 })
-for (const element of document.querySelectorAll('section:first-of-type input:not(.reminder-enable),section:first-of-type select')) {
+for (const element of document.querySelectorAll('section:first-of-type input:not(.reminder-enable):not(.position-slider),section:first-of-type select')) {
   element.addEventListener(element.type === 'range' ? 'input' : 'change', saveConfigSoon)
 }
 for (const id of ['textSize', 'timeSize', 'textStrokeWidth', 'timeStrokeWidth', 'textGlowSize', 'timeGlowSize']) $(id).addEventListener('input', () => valueLabel(id, ' px'))
@@ -175,7 +205,7 @@ for (const text of tempTexts) {
   button.onclick = () => { $('tempText').value = text; showTemp() }
   $('tempPresets').append(button)
 }
-function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
+function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,screenPosition:state?.reminder.temporary.screenPosition||{x:50,y:50},durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
 function showTemp() { api('/api/reminder/temp/show', temporarySettings()).catch(alert) }
 $('tempShow').onclick = showTemp
 $('tempHide').onclick = () => api('/api/reminder/temp/hide').catch(alert)
@@ -183,10 +213,10 @@ for(const id of ['tempText','tempPosition','tempDuration','tempFont','tempSize',
 
 $('marqueeLayout').onchange = () => updateDirectionOptions()
 $('marqueeSpeed').oninput = () => valueLabel('marqueeSpeed')
-function marqueeSettings(){return{text:$('marqueeText').value,layout:$('marqueeLayout').value,direction:$('marqueeDirection').value,speed:Number($('marqueeSpeed').value),background:$('marqueeBackground').value,opacity:Number($('marqueeOpacity').value),fadeIn:$('marqueeFadeIn').checked,fadeInSeconds:Number($('marqueeFadeInSeconds').value),fadeOut:$('marqueeFadeOut').checked,fadeOutSeconds:Number($('marqueeFadeOutSeconds').value),style:style('marquee')}}
+function marqueeSettings(){return{text:$('marqueeText').value,layout:$('marqueeLayout').value,direction:$('marqueeDirection').value,speed:Number($('marqueeSpeed').value),width:Number($('marqueeWidth').value),height:Number($('marqueeHeight').value),screenPosition:state?.reminder.marquee.screenPosition||{x:50,y:82},background:$('marqueeBackground').value,opacity:Number($('marqueeOpacity').value),fadeIn:$('marqueeFadeIn').checked,fadeInSeconds:Number($('marqueeFadeInSeconds').value),fadeOut:$('marqueeFadeOut').checked,fadeOutSeconds:Number($('marqueeFadeOutSeconds').value),style:style('marquee')}}
 $('marqueeShow').onclick = () => api('/api/reminder/marquee/show', marqueeSettings()).catch(alert)
 $('marqueeHide').onclick = () => api('/api/reminder/marquee/hide').catch(alert)
-for(const id of ['marqueeText','marqueeLayout','marqueeDirection','marqueeFont','marqueeColor','marqueeBackground','marqueeSize','marqueeOpacity','marqueeSpeed','marqueeStroke','marqueeStrokeWidth','marqueeStrokeColor','marqueeGlow','marqueeGlowColor','marqueeGlowSize','marqueeFadeIn','marqueeFadeInSeconds','marqueeFadeOut','marqueeFadeOutSeconds'])$(id).addEventListener(['range','text','color','number'].includes($(id).type)?'input':'change',()=>{if(['marqueeSize','marqueeStrokeWidth','marqueeGlowSize'].includes(id))valueLabel(id,' px');if(id==='marqueeOpacity')$('marqueeOpacityValue').textContent=`${Math.round($('marqueeOpacity').value*100)}%`;api('/api/reminder/config',{marquee:marqueeSettings()}).catch(console.error);api('/api/reminder/preview',{mode:'marquee'}).catch(console.error)})
+for(const id of ['marqueeText','marqueeLayout','marqueeDirection','marqueeFont','marqueeColor','marqueeBackground','marqueeSize','marqueeOpacity','marqueeSpeed','marqueeWidth','marqueeHeight','marqueeStroke','marqueeStrokeWidth','marqueeStrokeColor','marqueeGlow','marqueeGlowColor','marqueeGlowSize','marqueeFadeIn','marqueeFadeInSeconds','marqueeFadeOut','marqueeFadeOutSeconds'])$(id).addEventListener(['range','text','color','number'].includes($(id).type)?'input':'change',()=>{if(['marqueeSize','marqueeStrokeWidth','marqueeGlowSize'].includes(id))valueLabel(id,' px');if(['marqueeWidth','marqueeHeight'].includes(id))valueLabel(id,'%');if(id==='marqueeOpacity')$('marqueeOpacityValue').textContent=`${Math.round($('marqueeOpacity').value*100)}%`;api('/api/reminder/config',{marquee:marqueeSettings()}).catch(console.error);api('/api/reminder/preview',{mode:'marquee'}).catch(console.error)})
 
 $('imageSize').oninput = () => {
   valueLabel('imageSize', '%')
@@ -207,7 +237,7 @@ $('imageFile').onchange = () => {
 $('imageShow').onclick = () => {
   const url = imageData || state.reminder.image.url
   if (!url) return alert('請先選擇 PNG 圖片')
-  api('/api/reminder/image/show', { url, size: Number($('imageSize').value), durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value }).catch(alert)
+  api('/api/reminder/image/show', { url, size: Number($('imageSize').value), durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value, screenPosition:state?.reminder.image.screenPosition||{x:50,y:50} }).catch(alert)
 }
 $('imageHide').onclick = () => api('/api/reminder/image/hide').catch(alert)
 $('hideAll').onclick = () => api('/api/reminder/hide-all').catch(alert)

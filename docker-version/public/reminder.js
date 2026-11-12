@@ -3,6 +3,7 @@ const mode = new URLSearchParams(location.search).get('mode') || 'timed'
 const embedded = new URLSearchParams(location.search).get('embedded') === '1'
 const modeNames = { timed: '定時提醒', temporary: '臨時文字提醒', marquee: '跑馬燈提醒', image: 'PNG 圖片提醒' }
 document.body.dataset.mode = mode
+document.body.dataset.embedded = String(embedded)
 $('hoverHint').textContent = `${modeNames[mode]} · 拖曳調整位置 · 滑鼠離開後隱藏預覽`
 
 const modeElements = { timed: ['timed', 'timedPreview'], temporary: ['temporary'], marquee: ['marquee'], image: ['image', 'imagePreview'] }
@@ -19,7 +20,10 @@ function syncMarqueeSpeed() {
   const span = $('marqueeText'), horizontalMotion = ['rtl', 'ltr'].includes(latestMarquee.direction)
   const distance = horizontalMotion ? window.innerWidth + span.getBoundingClientRect().width : window.innerHeight + span.getBoundingClientRect().height
   $('marquee').style.setProperty('--duration', `${Math.max(.5, distance / Math.max(20, latestMarquee.speed))}s`)
+  $('marquee').style.setProperty('--track-width', `${$('marquee').clientWidth}px`)
+  $('marquee').style.setProperty('--track-height', `${$('marquee').clientHeight}px`)
 }
+function position(element, value, fallback = { x: 50, y: 50 }) { const p = value || fallback; element.style.left = `${p.x}%`; element.style.top = `${p.y}%` }
 for (const id of ['timed', 'timedPreview', 'temporary', 'marquee', 'image', 'imagePreview']) {
   if (!modeElements[mode].includes(id)) $(id).hidden = true
 }
@@ -69,6 +73,10 @@ function paint(s) {
   timed.style.setProperty('--fade-out', `${r.fadeOutSeconds}s`)
   timed.style.setProperty('--overlay', r.overlayColor)
   timed.style.setProperty('--overlay-opacity', r.overlayOpacity)
+  const timedContent = $('timedContent')
+  timedContent.className = `notice-content ${r.sameLine ? '' : 'column'}`
+  timedContent.style.gap = `${r.gap}px`
+  position(timedContent, embedded ? r.position : null)
   if (r.timed && mode === 'timed') {
     $('timedText').textContent = r.timed.text
     $('timedTime').textContent = r.showTime ? r.timed.timeText : ''
@@ -80,6 +88,10 @@ function paint(s) {
   const preview = $('timedPreview')
   preview.className = `notice preview ${r.sameLine ? '' : 'column'}`
   preview.style.gap = `${r.gap}px`
+  const previewContent = $('previewContent')
+  previewContent.className = `notice-content ${r.sameLine ? '' : 'column'}`
+  previewContent.style.gap = `${r.gap}px`
+  position(previewContent, embedded ? r.position : null)
   $('previewText').textContent = r.text || '提醒'
   $('previewTime').textContent = r.showTime ? r.timeText : ''
   styleText($('previewText'), r.textStyle)
@@ -89,6 +101,7 @@ function paint(s) {
   const temporary = $('temporary')
   temporary.textContent = r.temporary.text
   temporary.className = `temporary ${r.temporary.position}`
+  position(temporary, embedded ? r.temporary.screenPosition : null)
   if (mode === 'temporary' && r.temporaryPhase) temporary.classList.add('active', r.temporaryPhase)
   temporary.classList.toggle('preview', mode === 'temporary' && !r.temporaryVisible)
   temporary.style.setProperty('--fade-in', `${r.temporary.fadeInSeconds}s`)
@@ -99,7 +112,12 @@ function paint(s) {
   $('marqueeText').textContent = r.marquee.text
   const vertical = r.marquee.layout === 'vertical'
   latestMarquee = r.marquee
-  marquee.className = `marquee ${vertical ? 'vertical' : 'horizontal'} ${r.marquee.direction}`
+  marquee.className = `marquee ${embedded ? 'positioned' : ''} ${vertical ? 'vertical' : 'horizontal'} ${r.marquee.direction}`
+  const marqueePosition = r.marquee.screenPosition || { x: 50, y: 82 }
+  marquee.style.setProperty('--marquee-x', `${marqueePosition.x}%`)
+  marquee.style.setProperty('--marquee-y', `${marqueePosition.y}%`)
+  marquee.style.setProperty('--marquee-width', `${r.marquee.width ?? 80}%`)
+  marquee.style.setProperty('--marquee-height', `${r.marquee.height ?? 14}%`)
   if (mode === 'marquee' && r.marqueePhase) marquee.classList.add('active', r.marqueePhase)
   marquee.classList.toggle('preview', mode === 'marquee' && !r.marquee.active)
   const marqueeBackground = colorAlpha(r.marquee.background, r.marquee.opacity)
@@ -119,6 +137,7 @@ function paint(s) {
   const pulseScale = r.image.effect === 'pulse' ? 1 / 1.1 : 1
   image.style.width = embedded ? `${pulseScale * r.image.size}vw` : `${pulseScale * 100}%`
   image.style.height = embedded ? `${pulseScale * r.image.size}vh` : `${pulseScale * 100}%`
+  position(image, embedded ? r.image.screenPosition : null)
   image.className = mode === 'image' && r.imageVisible ? `active ${r.image.effect === 'pulse' ? 'pulse' : ''}` : ''
   if (mode === 'image' && r.image.url && !r.imageVisible) image.classList.add('preview')
   const imagePreview = $('imagePreview')

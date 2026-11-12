@@ -81,6 +81,7 @@ export class MeditationHostInstance extends InstanceBase {
       reminder_toggle_pause: { name:'提醒器：暫停／繼續切換',options:[],callback:()=>this.command(this.state.reminder?.status==='running'?'/api/reminder/pause':'/api/reminder/start') },
       reminder_reset: { name:'提醒器：重設',options:[],callback:()=>this.command('/api/reminder/reset') },
       reminder_trigger: { name:'提醒器：中途提醒',options:[],callback:()=>this.command('/api/reminder/trigger') },
+      reminder_toggle_visible: { name:'時間提醒：顯示／隱藏',options:[],callback:()=>this.command(this.state.reminder?.timed?'/api/reminder/timed/hide':'/api/reminder/trigger') },
       reminder_interval: { name:'提醒器：設定間隔',options:[{type:'number',id:'minutes',label:'分鐘',default:10,min:1,max:1440,required:true}],callback:e=>this.post('/api/reminder/config',{intervalMinutes:Math.round(e.options.minutes)}) },
       reminder_bind: { name:'提醒器：綁定／取消綁定靜心',options:[],callback:()=>this.post('/api/reminder/config',{boundToMeditation:!this.state.reminder?.boundToMeditation}) },
       reminder_toggle_timed: { name:'提醒視窗：啟用／停用定時提醒',options:[],callback:()=>this.post('/api/reminder/config',{timedEnabled:!this.state.reminder?.timedEnabled}) },
@@ -89,11 +90,13 @@ export class MeditationHostInstance extends InstanceBase {
       reminder_toggle_image: { name:'提醒視窗：啟用／停用圖片提醒',options:[],callback:()=>this.post('/api/reminder/config',{imageEnabled:!this.state.reminder?.imageEnabled}) },
       temporary_show: { name:'臨時提醒：顯示文字',options:[{type:'textinput',id:'text',label:'提醒文字',default:'請保持安靜',required:true},{type:'number',id:'seconds',label:'顯示秒數',default:8,min:1,max:300}],callback:e=>this.post('/api/reminder/temp/show',{text:e.options.text,durationSeconds:e.options.seconds}) },
       temporary_hide: { name:'臨時提醒：隱藏',options:[],callback:()=>this.command('/api/reminder/temp/hide') },
+      temporary_toggle: { name:'臨時提醒：顯示／隱藏',options:[],callback:()=>this.state.reminder?.temporaryVisible?this.command('/api/reminder/temp/hide'):this.post('/api/reminder/temp/show',{}) },
       marquee_show: { name:'跑馬燈：顯示文字',options:[{type:'textinput',id:'text',label:'跑馬燈文字',default:'活動即將開始',required:true},{type:'dropdown',id:'direction',label:'排列與方向',default:'rtl',choices:[{id:'rtl',label:'橫式・右到左'},{id:'ltr',label:'橫式・左到右'},{id:'ttb',label:'直式・從上到下'},{id:'btt',label:'直式・從下到上'}]}],callback:e=>this.post('/api/reminder/marquee/show',{text:e.options.text,direction:e.options.direction,layout:['ttb','btt'].includes(e.options.direction)?'vertical':'horizontal'}) },
       marquee_toggle: { name:'跑馬燈：顯示／取消',options:[{type:'textinput',id:'text',label:'跑馬燈文字',default:'活動即將開始',required:true},{type:'dropdown',id:'direction',label:'排列與方向',default:'rtl',choices:[{id:'rtl',label:'橫式・右到左'},{id:'ltr',label:'橫式・左到右'},{id:'ttb',label:'直式・從上到下'},{id:'btt',label:'直式・從下到上'}]}],callback:e=>this.state.reminder?.marquee?.active?this.command('/api/reminder/marquee/hide'):this.post('/api/reminder/marquee/show',{text:e.options.text,direction:e.options.direction,layout:['ttb','btt'].includes(e.options.direction)?'vertical':'horizontal'}) },
       marquee_hide: { name:'跑馬燈：停止',options:[],callback:()=>this.command('/api/reminder/marquee/hide') },
       image_show: { name:'圖片提醒：顯示網址',options:[{type:'textinput',id:'url',label:'PNG 圖片網址或 Data URL',default:'',required:true},{type:'number',id:'seconds',label:'顯示秒數',default:10,min:1,max:300}],callback:e=>this.post('/api/reminder/image/show',{url:e.options.url,durationSeconds:e.options.seconds}) },
       image_hide: { name:'圖片提醒：隱藏',options:[],callback:()=>this.command('/api/reminder/image/hide') },
+      image_toggle: { name:'圖片提醒：顯示／隱藏',options:[],callback:()=>this.state.reminder?.imageVisible?this.command('/api/reminder/image/hide'):this.post('/api/reminder/image/show',{}) },
       reminder_hide_all: { name:'提醒：隱藏全部',options:[],callback:()=>this.command('/api/reminder/hide-all') },
     }
   }
@@ -118,10 +121,10 @@ export class MeditationHostInstance extends InstanceBase {
       marquee_visible:{name:'跑馬燈正在顯示',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.marquee?.active===true},
       image_visible:{name:'圖片提醒正在顯示',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.imageVisible===true},
       reminder_interval:{name:'目前提醒間隔',type:'boolean',defaultStyle:{png64:SELECTED_DURATION_BORDER},options:[{type:'number',id:'minutes',label:'分鐘',default:10,min:1,max:1440}],callback:e=>this.state.reminder?.intervalMinutes===Math.round(Number(e.options.minutes))},
-      reminder_timed_enabled:{name:'定時提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.timedEnabled===true},
-      reminder_temporary_enabled:{name:'臨時提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.temporaryEnabled===true},
-      reminder_marquee_enabled:{name:'跑馬燈視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.marqueeEnabled===true},
-      reminder_image_enabled:{name:'圖片提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#cc2222',color:'#ffffff'},options:[],callback:()=>this.state.reminder?.imageEnabled===true},
+      reminder_timed_enabled:{name:'定時提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#ffd400',color:'#000000'},options:[],callback:()=>this.state.reminder?.timedEnabled===true},
+      reminder_temporary_enabled:{name:'臨時提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#ffd400',color:'#000000'},options:[],callback:()=>this.state.reminder?.temporaryEnabled===true},
+      reminder_marquee_enabled:{name:'跑馬燈視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#ffd400',color:'#000000'},options:[],callback:()=>this.state.reminder?.marqueeEnabled===true},
+      reminder_image_enabled:{name:'圖片提醒視窗已啟用',type:'boolean',defaultStyle:{bgcolor:'#ffd400',color:'#000000'},options:[],callback:()=>this.state.reminder?.imageEnabled===true},
     }
   }
   presets() {
@@ -141,8 +144,9 @@ export class MeditationHostInstance extends InstanceBase {
     presets.reminder_pause={...button('提醒器暫停／繼續','暫停\n繼續','reminder_toggle_pause'),feedbacks:[{feedbackId:'reminder_running',options:{},style:{bgcolor:'#188f49',color:'#ffffff'}}]};presets.reminder_reset=button('提醒器重設','提醒\n重設','reminder_reset');presets.reminder_trigger={...button('中途提醒','中途\n提醒','reminder_trigger'),feedbacks:[{feedbackId:'reminder_visible',options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]}
     presets.reminder_time={type:'button',category:'時間提醒',name:'提醒時間',style:{...style,text:'$(Meditation:reminder_elapsed)\n下次 $(Meditation:reminder_next)',size:'15'},steps:[],feedbacks:[]}
     for(const minutes of [5,10,15,30])presets[`reminder_interval_${minutes}`]={...button(`提醒每 ${minutes} 分鐘`,`${minutes}\n分鐘`,'reminder_interval',{minutes}),category:'時間提醒',feedbacks:[{feedbackId:'reminder_interval',options:{minutes},style:{png64:SELECTED_DURATION_BORDER}}]}
-    presets.temp_quiet={...button('臨時：保持安靜','保持\n安靜','temporary_show',{text:'請保持安靜',seconds:8}),category:'時間提醒',feedbacks:[{feedbackId:'temporary_visible',options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]};presets.marquee={...button('跑馬燈顯示／取消','跑馬燈','marquee_toggle',{text:'活動即將開始',direction:'rtl'}),category:'時間提醒',feedbacks:[{feedbackId:'marquee_visible',options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]};presets.hide_all={...button('隱藏全部提醒','隱藏\n提醒','reminder_hide_all'),category:'時間提醒'}
-    for(const [key,label,action,feedback] of [['timed','定時提醒','reminder_toggle_timed','reminder_timed_enabled'],['temporary','臨時提醒','reminder_toggle_temporary','reminder_temporary_enabled'],['marquee_window','跑馬燈視窗','reminder_toggle_marquee','reminder_marquee_enabled'],['image_window','圖片視窗','reminder_toggle_image','reminder_image_enabled']])presets[`reminder_enable_${key}`]={...button(`啟用／停用${label}`,`${label}\n啟用`,action),category:'時間提醒',feedbacks:[{feedbackId:feedback,options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]}
+    presets.temp_quiet={...button('臨時：保持安靜','保持\n安靜','temporary_show',{text:'請保持安靜',seconds:8}),category:'時間提醒',feedbacks:[{feedbackId:'temporary_visible',options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]};presets.hide_all={...button('隱藏全部提醒','隱藏\n提醒','reminder_hide_all'),category:'時間提醒'}
+    for(const [key,label,action,feedback] of [['timed','時間提醒','reminder_toggle_timed','reminder_timed_enabled'],['marquee','跑馬燈','reminder_toggle_marquee','reminder_marquee_enabled'],['image','圖片提醒','reminder_toggle_image','reminder_image_enabled'],['temporary','臨時提醒','reminder_toggle_temporary','reminder_temporary_enabled']])presets[`reminder_enable_${key}`]={...button(`${label} 啟用／關閉`,`${label}\n啟用／關閉`,action),category:'時間提醒',feedbacks:[{feedbackId:feedback,options:{},style:{bgcolor:'#ffd400',color:'#000000'}}]}
+    for(const [key,label,action,feedback,options] of [['marquee','跑馬燈','marquee_toggle','marquee_visible',{text:'活動即將開始',direction:'rtl'}],['temporary','臨時提醒','temporary_toggle','temporary_visible',{}],['image','圖片提醒','image_toggle','image_visible',{}],['timed','時間提醒','reminder_toggle_visible','reminder_visible',{}]])presets[`reminder_show_${key}`]={...button(`${label} 顯示／隱藏`,`${label}\n顯示／隱藏`,action,options),category:'時間提醒',feedbacks:[{feedbackId:feedback,options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]}
     return presets
   }
 }
