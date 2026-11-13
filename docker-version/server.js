@@ -41,7 +41,7 @@ const defaults = {
     textStyle: { font: 'system-ui', size: 72, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     timeStyle: { font: 'system-ui', size: 64, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     manualResetsInterval: false,
-    temporary: { active: false, text: '請保持安靜', durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', screenPosition: { x: 50, y: 50 }, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
+    temporary: { active: false, text: '請保持安靜', autoHide: true, durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', screenPosition: { x: 50, y: 50 }, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', screenPosition: { x: 50, y: 82 }, width: 80, height: 14, background: '#000000', opacity: 0.55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     image: { active: false, url: '', size: 30, autoHide: false, durationSeconds: 10, startedAt: null, effect: 'fade', screenPosition: { x: 50, y: 50 } },
   },
@@ -114,7 +114,7 @@ function reminderPresentation(elapsed) {
   if (now < reminderTimedHiddenUntil) timed = null
   const tempElapsed=r.temporary.startedAt?(now-r.temporary.startedAt)/1000:0,tempIn=r.temporary.fadeIn?r.temporary.fadeInSeconds:0,tempOut=r.temporary.fadeOut?r.temporary.fadeOutSeconds:0,tempStopping=r.temporary.stoppingAt?(now-r.temporary.stoppingAt)/1000:null
   let temporaryPhase=null
-  if(r.temporary.active){if(tempStopping!==null)temporaryPhase=tempStopping<tempOut?'fadeOut':null;else if(tempElapsed<tempIn)temporaryPhase='fadeIn';else if(tempElapsed<tempIn+r.temporary.durationSeconds)temporaryPhase='effect';else if(tempElapsed<tempIn+r.temporary.durationSeconds+tempOut)temporaryPhase='fadeOut';if(!temporaryPhase){r.temporary.active=false;r.temporary.stoppingAt=null}}
+  if(r.temporary.active){if(tempStopping!==null)temporaryPhase=tempStopping<tempOut?'fadeOut':null;else if(tempElapsed<tempIn)temporaryPhase='fadeIn';else if(!r.temporary.autoHide||tempElapsed<tempIn+r.temporary.durationSeconds)temporaryPhase='effect';else if(tempElapsed<tempIn+r.temporary.durationSeconds+tempOut)temporaryPhase='fadeOut';if(!temporaryPhase){r.temporary.active=false;r.temporary.stoppingAt=null}}
   const temporary=!!temporaryPhase
   const mq=r.marquee,mqStopping=mq.stoppingAt?(now-mq.stoppingAt)/1000:null
   let marqueePhase=null

@@ -119,7 +119,7 @@ function paint(s) {
   valueLabel('marqueeSpeed')
   set('imageSize', r.image.size)
   valueLabel('imageSize', '%')
-  set('tempText', r.temporary.text);set('tempPosition',r.temporary.position);set('tempDuration',r.temporary.durationSeconds)
+  set('tempText', r.temporary.text);set('tempPosition',r.temporary.position);set('tempDuration',r.temporary.durationSeconds);set('tempDisplayMode',r.temporary.autoHide===false?'persistent':'auto');$('tempDuration').disabled=r.temporary.autoHide===false
   for(const key of ['Font','Size','Color','StrokeWidth','StrokeColor','GlowColor','GlowSize'])set('temp'+key,r.temporary.style[key[0].toLowerCase()+key.slice(1)])
   check('tempStroke',r.temporary.style.stroke);check('tempGlow',r.temporary.style.glow);check('tempFadeIn',r.temporary.fadeIn);check('tempFadeOut',r.temporary.fadeOut);set('tempFadeInSeconds',r.temporary.fadeInSeconds);set('tempFadeOutSeconds',r.temporary.fadeOutSeconds);valueLabel('tempSize',' px');valueLabel('tempStrokeWidth',' px');valueLabel('tempGlowSize',' px')
   set('marqueeText',r.marquee.text);set('marqueeFont',r.marquee.style.font);set('marqueeSize',r.marquee.style.size);set('marqueeColor',r.marquee.style.color);set('marqueeBackground',r.marquee.background);set('marqueeOpacity',r.marquee.opacity);set('marqueeStrokeWidth',r.marquee.style.strokeWidth);set('marqueeStrokeColor',r.marquee.style.strokeColor);set('marqueeGlowColor',r.marquee.style.glowColor);set('marqueeGlowSize',r.marquee.style.glowSize);check('marqueeStroke',r.marquee.style.stroke);check('marqueeGlow',r.marquee.style.glow);check('marqueeFadeIn',r.marquee.fadeIn);check('marqueeFadeOut',r.marquee.fadeOut);set('marqueeFadeInSeconds',r.marquee.fadeInSeconds);set('marqueeFadeOutSeconds',r.marquee.fadeOutSeconds);valueLabel('marqueeSize',' px');valueLabel('marqueeStrokeWidth',' px');valueLabel('marqueeGlowSize',' px');$('marqueeOpacityValue').textContent=`${Math.round(r.marquee.opacity*100)}%`
@@ -175,11 +175,11 @@ for (const text of tempTexts) {
   button.onclick = () => { $('tempText').value = text; showTemp() }
   $('tempPresets').append(button)
 }
-function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
+function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,autoHide:$('tempDisplayMode').value==='auto',durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
 function showTemp() { api('/api/reminder/temp/show', temporarySettings()).catch(alert) }
 $('tempShow').onclick = showTemp
 $('tempHide').onclick = () => api('/api/reminder/temp/hide').catch(alert)
-for(const id of ['tempText','tempPosition','tempDuration','tempFont','tempSize','tempColor','tempStroke','tempStrokeWidth','tempStrokeColor','tempGlow','tempGlowColor','tempGlowSize','tempFadeIn','tempFadeInSeconds','tempFadeOut','tempFadeOutSeconds'])$(id).addEventListener(['range','text','color','number'].includes($(id).type)?'input':'change',()=>{if(['tempSize','tempStrokeWidth','tempGlowSize'].includes(id))valueLabel(id,' px');api('/api/reminder/config',{temporary:temporarySettings()}).catch(console.error);api('/api/reminder/preview',{mode:'temporary'}).catch(console.error)})
+for(const id of ['tempText','tempPosition','tempDisplayMode','tempDuration','tempFont','tempSize','tempColor','tempStroke','tempStrokeWidth','tempStrokeColor','tempGlow','tempGlowColor','tempGlowSize','tempFadeIn','tempFadeInSeconds','tempFadeOut','tempFadeOutSeconds'])$(id).addEventListener(['range','text','color','number'].includes($(id).type)?'input':'change',()=>{if(id==='tempDisplayMode')$('tempDuration').disabled=$('tempDisplayMode').value==='persistent';if(['tempSize','tempStrokeWidth','tempGlowSize'].includes(id))valueLabel(id,' px');api('/api/reminder/config',{temporary:temporarySettings()}).catch(console.error);api('/api/reminder/preview',{mode:'temporary'}).catch(console.error)})
 
 $('marqueeLayout').onchange = () => updateDirectionOptions()
 $('marqueeSpeed').oninput = () => valueLabel('marqueeSpeed')

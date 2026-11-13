@@ -38,7 +38,7 @@ const state = {
     textStyle: { font: 'system-ui', size: 72, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     timeStyle: { font: 'system-ui', size: 64, color: '#ffffff', stroke: true, strokeWidth: 2, strokeColor: '#000000', glow: true, glowSize: 16, glowColor: '#ffffff' },
     manualResetsInterval: false,
-    temporary: { active: false, text: '請保持安靜', durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
+    temporary: { active: false, text: '請保持安靜', autoHide: true, durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', background: '#000000', opacity: .55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     image: { active: false, url: '', size: 30, durationSeconds: 10, startedAt: null, effect: 'fade' },
   },
@@ -251,7 +251,7 @@ function reminderPresentation(elapsed) {
   if (temp.active) {
     if (tempStopping !== null) temporaryPhase = tempStopping < tempFadeOut ? 'fadeOut' : null
     else if (tempElapsed < tempFadeIn) temporaryPhase = 'fadeIn'
-    else if (tempElapsed < tempFadeIn + temp.durationSeconds) temporaryPhase = 'effect'
+    else if (!temp.autoHide || tempElapsed < tempFadeIn + temp.durationSeconds) temporaryPhase = 'effect'
     else if (tempElapsed < tempFadeIn + temp.durationSeconds + tempFadeOut) temporaryPhase = 'fadeOut'
     if (!temporaryPhase) { temp.active=false; temp.stoppingAt=null }
   }
