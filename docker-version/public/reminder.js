@@ -108,7 +108,7 @@ function paint(s) {
   if (mode === 'temporary') {
   const temporary = $('temporary')
   temporary.textContent = r.temporary.text
-  temporary.className = `temporary ${r.temporary.position}`
+  temporary.className = `temporary ${r.temporary.position} ${embedded ? 'positioned' : ''}`
   position(temporary, embedded ? r.temporary.screenPosition : null)
   if (mode === 'temporary' && r.temporaryPhase) temporary.classList.add('active', r.temporaryPhase)
   temporary.classList.toggle('preview', mode === 'temporary' && !r.temporaryVisible)
