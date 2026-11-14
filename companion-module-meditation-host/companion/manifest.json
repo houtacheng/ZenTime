@@ -3,7 +3,7 @@
   "name": "靜心主持台",
   "shortname": "靜心主持台",
   "description": "控制 ZenTime 靜心倒數、時間提醒、臨時提醒、跑馬燈與圖片提醒",
-  "version": "0.6.1",
+  "version": "0.6.4",
   "license": "MIT",
   "repository": "local",
   "bugs": "local",

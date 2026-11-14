@@ -1,5 +1,25 @@
 const $ = id => document.getElementById(id)
 let state
+let tempPositionPending = {}, tempPositionTimer, tempPositionSending = false
+async function flushTempPosition() {
+  if (tempPositionSending || !Object.keys(tempPositionPending).length) return
+  const screenPosition = tempPositionPending
+  tempPositionPending = {}
+  tempPositionSending = true
+  try { await api('/api/reminder/config', { temporary: { screenPosition } }) }
+  catch (error) { console.error(error) }
+  finally {
+    tempPositionSending = false
+    if (Object.keys(tempPositionPending).length) scheduleTempPosition()
+  }
+}
+function scheduleTempPosition() {
+  if (tempPositionTimer || tempPositionSending) return
+  tempPositionTimer = setTimeout(() => {
+    tempPositionTimer = null
+    void flushTempPosition()
+  }, 120)
+}
 const positionDefinitions = [
   ['timed', 'timedPositionControls', '定時提醒位置'],
   ['temporary', 'temporaryPositionControls', '臨時提醒位置'],
@@ -15,9 +35,14 @@ for (const [mode, containerId, label] of positionDefinitions) {
     name.textContent = axis.toUpperCase(); input.type = 'range'; input.className = 'position-slider'; input.min = '0'; input.max = '100'; input.step = '1'
     row.append(name, input, output); container.append(row); controls[axis] = { input, output }
     input.oninput = () => {
+      output.value = `${input.value}%`
+      if (mode === 'temporary') {
+        tempPositionPending[axis] = Number(input.value)
+        scheduleTempPosition()
+        return
+      }
       const current = mode === 'timed' ? state.reminder.position : state.reminder[mode].screenPosition
       const position = { ...(current || { x: 50, y: 50 }), [axis]: Number(input.value) }
-      output.value = `${input.value}%`
       const body = mode === 'timed' ? { position } : { [mode]: { screenPosition: position } }
       api('/api/reminder/config', body).catch(console.error)
       api('/api/reminder/preview', { mode }).catch(console.error)
@@ -171,7 +196,29 @@ function config() {
 
 new EventSource('/api/events').onmessage = event => paint(JSON.parse(event.data))
 fetch('/api/state').then(response => response.json()).then(paint)
-$('save').onclick = () => api('/api/reminder/config', config()).catch(alert)
+$('save').textContent = '儲存全部提醒設定'
+$('save').onclick = async () => {
+  const button = $('save')
+  clearTimeout(saveTimer)
+  button.disabled = true
+  try {
+    await api('/api/reminder/config', {
+      ...config(),
+      position: positionValues('timed'),
+      temporary: { ...temporarySettings(), screenPosition: positionValues('temporary') },
+      marquee: { ...marqueeSettings(), screenPosition: positionValues('marquee') },
+      image: { size: Number($('imageSize').value), autoHide: $('imageDisplayMode').value === 'auto',
+        durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value, screenPosition: positionValues('image') },
+    })
+    button.textContent = '已儲存全部提醒設定'
+    setTimeout(() => { button.textContent = '儲存全部提醒設定' }, 1800)
+  } catch (error) { alert(error.message) }
+  finally { button.disabled = false }
+}
+function positionValues(mode) {
+  const { x, y } = positionControls.get(mode)
+  return { x: Number(x.input.value), y: Number(y.input.value) }
+}
 $('start').onclick = () => api('/api/reminder/start').catch(alert)
 $('pause').onclick = () => api(state?.reminder.status === 'paused' ? '/api/reminder/start' : '/api/reminder/pause').catch(alert)
 $('reset').onclick = () => api('/api/reminder/reset').catch(alert)
@@ -205,7 +252,7 @@ for (const text of tempTexts) {
   button.onclick = () => { $('tempText').value = text; showTemp() }
   $('tempPresets').append(button)
 }
-function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,screenPosition:state?.reminder.temporary.screenPosition||{x:50,y:50},autoHide:$('tempDisplayMode').value==='auto',durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
+function temporarySettings() { return { text:$('tempText').value,position:$('tempPosition').value,autoHide:$('tempDisplayMode').value==='auto',durationSeconds:Number($('tempDuration').value),fadeIn:$('tempFadeIn').checked,fadeInSeconds:Number($('tempFadeInSeconds').value),fadeOut:$('tempFadeOut').checked,fadeOutSeconds:Number($('tempFadeOutSeconds').value),style:style('temp') } }
 function showTemp() { api('/api/reminder/temp/show', temporarySettings()).catch(alert) }
 $('tempShow').onclick = showTemp
 $('tempHide').onclick = () => api('/api/reminder/temp/hide').catch(alert)
@@ -240,5 +287,6 @@ $('imageShow').onclick = () => {
 }
 $('imageDisplayMode').onchange = () => { const autoHide = $('imageDisplayMode').value === 'auto'; $('imageDuration').disabled = !autoHide; api('/api/reminder/config', { image: { autoHide, durationSeconds: Number($('imageDuration').value) } }).catch(console.error) }
 $('imageDuration').onchange = () => api('/api/reminder/config', { image: { durationSeconds: Number($('imageDuration').value) } }).catch(console.error)
+$('imageEffect').onchange = () => api('/api/reminder/config', { image: { effect: $('imageEffect').value } }).catch(console.error)
 $('imageHide').onclick = () => api('/api/reminder/image/hide').catch(alert)
 $('hideAll').onclick = () => api('/api/reminder/hide-all').catch(alert)

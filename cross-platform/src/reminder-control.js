@@ -118,6 +118,10 @@ function paint(s) {
   set('marqueeSpeed', r.marquee.speed)
   valueLabel('marqueeSpeed')
   set('imageSize', r.image.size)
+  set('imageDuration', r.image.durationSeconds)
+  set('imageEffect', r.image.effect)
+  set('imageDisplayMode', r.image.autoHide === false ? 'persistent' : 'auto')
+  $('imageDuration').disabled = $('imageDisplayMode').value === 'persistent'
   valueLabel('imageSize', '%')
   set('tempText', r.temporary.text);set('tempPosition',r.temporary.position);set('tempDuration',r.temporary.durationSeconds);set('tempDisplayMode',r.temporary.autoHide===false?'persistent':'auto');$('tempDuration').disabled=r.temporary.autoHide===false
   for(const key of ['Font','Size','Color','StrokeWidth','StrokeColor','GlowColor','GlowSize'])set('temp'+key,r.temporary.style[key[0].toLowerCase()+key.slice(1)])
@@ -141,7 +145,18 @@ function config() {
 
 new EventSource('/api/events').onmessage = event => paint(JSON.parse(event.data))
 fetch('/api/state').then(response => response.json()).then(paint)
-$('save').onclick = () => api('/api/reminder/config', config()).catch(alert)
+$('save').textContent = '儲存全部提醒設定'
+$('save').onclick = async () => {
+  const button = $('save')
+  clearTimeout(saveTimer)
+  button.disabled = true
+  try {
+    await api('/api/reminder/save', { ...config(), temporary: temporarySettings(), marquee: marqueeSettings(), image: imageSettings() })
+    button.textContent = '已儲存全部提醒設定'
+    setTimeout(() => { button.textContent = '儲存全部提醒設定' }, 1800)
+  } catch (error) { alert(error.message) }
+  finally { button.disabled = false }
+}
 $('start').onclick = () => api('/api/reminder/start').catch(alert)
 $('pause').onclick = () => api(state?.reminder.status === 'paused' ? '/api/reminder/start' : '/api/reminder/pause').catch(alert)
 $('reset').onclick = () => api('/api/reminder/reset').catch(alert)
@@ -207,7 +222,12 @@ $('imageFile').onchange = () => {
 $('imageShow').onclick = () => {
   const url = imageData || state.reminder.image.url
   if (!url) return alert('請先選擇 PNG 圖片')
-  api('/api/reminder/image/show', { url, size: Number($('imageSize').value), durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value }).catch(alert)
+  api('/api/reminder/image/show', { url, ...imageSettings() }).catch(alert)
+}
+function imageSettings() { return { size: Number($('imageSize').value), autoHide: $('imageDisplayMode').value === 'auto', durationSeconds: Number($('imageDuration').value), effect: $('imageEffect').value } }
+for (const id of ['imageDisplayMode', 'imageDuration', 'imageEffect']) $(id).onchange = () => {
+  $('imageDuration').disabled = $('imageDisplayMode').value === 'persistent'
+  api('/api/reminder/config', { image: imageSettings() }).catch(console.error)
 }
 $('imageHide').onclick = () => api('/api/reminder/image/hide').catch(alert)
 $('hideAll').onclick = () => api('/api/reminder/hide-all').catch(alert)

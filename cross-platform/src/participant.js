@@ -1,5 +1,26 @@
 const $=id=>document.getElementById(id),stage=$('stage');let state,lastStatus,drag
 function fileURL(p){return p||''}
+const backgroundVideo = document.createElement('video')
+backgroundVideo.muted = true
+backgroundVideo.autoplay = true
+backgroundVideo.loop = true
+backgroundVideo.playsInline = true
+Object.assign(backgroundVideo.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' })
+backgroundVideo.hidden = true
+stage.prepend(backgroundVideo)
+function syncBackgroundVideo(url) {
+  if (url === backgroundVideo.getAttribute('src')) return
+  if (url) {
+    backgroundVideo.hidden = false
+    backgroundVideo.src = url
+    backgroundVideo.play().catch(console.warn)
+  } else if (backgroundVideo.hasAttribute('src')) {
+    backgroundVideo.hidden = true
+    backgroundVideo.pause()
+    backgroundVideo.removeAttribute('src')
+    backgroundVideo.load()
+  }
+}
 function clockText(){const d=new Date();return state.clock24?d.toLocaleTimeString('zh-TW',{hour12:false}):d.toLocaleTimeString('zh-TW',{hour12:true})}
 function position(el,p){el.style.left=p.x*100+'%';el.style.top=(1-p.y)*100+'%'}
 function play(kind,onEnded){if(state.silent){onEnded?.();return}const a=$(kind),cfg=state[kind];if(!cfg.file){onEnded?.();return}a.src=fileURL(cfg.file);a.volume=cfg.fadeIn?0:cfg.volume/100;a.currentTime=0;a.onended=()=>onEnded?.();a.ontimeupdate=()=>{if(cfg.fadeOut&&a.duration&&a.duration-a.currentTime<2)a.volume=Math.max(0,(a.duration-a.currentTime)/2*cfg.volume/100)};a.play().catch(()=>onEnded?.());if(cfg.fadeIn){let i=0;const t=setInterval(()=>{i++;a.volume=Math.min(cfg.volume/100,i/20*cfg.volume/100);if(i>=20)clearInterval(t)},100)}}
@@ -21,4 +42,5 @@ const endBackgroundDrag=e=>{if(windowResize?.pointerId===e.pointerId){meditation
 stage.addEventListener('pointerup',endBackgroundDrag)
 stage.addEventListener('pointercancel',endBackgroundDrag)
 stage.addEventListener('dblclick',e=>{e.preventDefault();meditation.toggleParticipantFullscreen()})
-meditation.onState(s=>{paint(s);applyFonts(s)});meditation.getState().then(s=>{paint(s);applyFonts(s)})
+function render(s){paint(s);syncBackgroundVideo(s.backgroundVideo);applyFonts(s)}
+meditation.onState(render);meditation.getState().then(render)

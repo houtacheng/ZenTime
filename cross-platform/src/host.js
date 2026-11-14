@@ -7,14 +7,72 @@ function bindFont(id){$(id).onchange=e=>set(id,e.target.value)}
 bindCheck('showClock');bindCheck('showText');bindCheck('showCountdown');bindCheck('alwaysOnTop');bindCheck('gradient');bindCheck('silent');bindCheck('musicEnabled');bindRange('clockSize');bindRange('textSize');bindRange('countdownSize');bindRange('progressSize','progressSize','%')
 for(const id of ['clockFont','textFont','countdownFont'])bindFont(id)
 $('clock24').onchange=e=>set('clock24',e.target.value==='true');$('progressStyle').onchange=e=>set('progressStyle',e.target.value);$('progressMode').onchange=e=>set('progressMode',e.target.value);$('progressDirection').onchange=e=>set('progressDirection',e.target.value);$('musicMode').onchange=e=>set('music',{...state.music,mode:e.target.value});$('text').oninput=e=>set('text',e.target.value);$('background').oninput=e=>set('background',e.target.value);$('background2').oninput=e=>set('background2',e.target.value)
-for(const id of ['start','toggle','reset','finish'])$(id).onclick=()=>meditation.command(id);$('setDuration').onclick=()=>meditation.command('duration',Number($('custom').value));$('backgroundImage').onclick=async()=>{const f=await meditation.chooseFile('image');if(f)set('backgroundImage',f)}
+for(const id of ['start','toggle','reset','finish'])$(id).onclick=()=>meditation.command(id);$('setDuration').onclick=()=>meditation.command('duration',Number($('custom').value))
+const backgroundSlots = []
+for (const kind of ['video', 'image']) for (const slot of [0, 1]) {
+  const label = (kind === 'video' ? '影片' : '圖片') + (slot + 1)
+  const card = document.createElement('div')
+  card.className = 'background-slot'
+  card.innerHTML = '<button disabled><span class="background-preview">尚未匯入</span><strong></strong></button><button>匯入檔案…</button>'
+  const [select, load] = card.children, [preview, title] = select.children
+  title.textContent = label
+  load.setAttribute('aria-label', '匯入' + label)
+  select.onclick = () => meditation.selectBackground(kind, slot).catch(error => alert(error.message))
+  load.onclick = async () => {
+    load.disabled = true
+    try { await meditation.storeBackground(kind, slot) }
+    catch (error) { alert(error.message) }
+    finally { load.disabled = false }
+  }
+  backgroundSlots.push({ kind, slot, label, select, preview, title, url: '' })
+  $('backgroundSlots').append(card)
+}
+function paintBackgroundSlots(s) {
+  for (const item of backgroundSlots) {
+    const { kind, slot, label, select, preview, title } = item
+    const url = s.backgroundSlots[kind][slot]
+    const active = !!url && url === (kind === 'video' ? s.backgroundVideo : s.backgroundImage)
+    title.textContent = label + (active ? '・使用中' : '')
+    select.disabled = !url
+    select.classList.toggle('active', active)
+    select.setAttribute('aria-pressed', String(active))
+    if (item.url === url) continue
+    item.url = url
+    if (!url) { preview.textContent = '尚未匯入'; continue }
+    const media = document.createElement(kind === 'video' ? 'video' : 'img')
+    media.setAttribute('aria-hidden', 'true')
+    if (kind === 'video') {
+      media.muted = true
+      media.preload = 'auto'
+      media.onloadeddata = () => {
+        if (!preview.contains(media) || !media.videoWidth) return
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.min(480, media.videoWidth)
+          canvas.height = Math.max(1, Math.round(canvas.width * media.videoHeight / media.videoWidth))
+          canvas.getContext('2d').drawImage(media, 0, 0, canvas.width, canvas.height)
+          const thumbnail = new Image()
+          thumbnail.alt = ''
+          thumbnail.src = canvas.toDataURL('image/jpeg', .8)
+          preview.replaceChildren(thumbnail)
+          media.removeAttribute('src')
+          media.load()
+        } catch { /* The paused video remains as a fallback. */ }
+      }
+    } else media.alt = ''
+    media.onerror = () => { if (preview.contains(media)) preview.textContent = '無法預覽' }
+    preview.replaceChildren(media)
+    media.src = url
+  }
+}
+$('clearBackground').onclick = () => meditation.selectBackground(null).catch(error => alert(error.message))
 $('toggleParticipant').onclick=()=>meditation.command('toggleParticipant')
 $('reminderControl').onclick=()=>meditation.command('showReminderControl')
 $('saveDefaults').onclick=async()=>{const button=$('saveDefaults'),status=$('saveDefaultsStatus');button.disabled=true;const result=await meditation.saveDefaults();status.textContent=result.message;button.textContent=result.ok?'已儲存':'儲存失敗';setTimeout(()=>{button.disabled=false;button.textContent='儲存目前設定為預設';status.textContent='下次開啟 ZenTime 時自動套用'},2200)}
 const audio=$('audio');for(const kind of ['opening','music','closing']){const names={opening:'開頭磬聲',music:'背景音樂',closing:'結尾磬聲'};const div=document.createElement('div');div.innerHTML=`<div class="row"><button class="grow" data-file>${names[kind]}：選擇…</button></div><div class="muted" data-info></div><div class="row"><span>音量</span><input data-volume type="range" min="0" max="100"><span class="value" data-v></span></div><div class="row"><label><input data-in type="checkbox">靜心開始淡入</label><label><input data-out type="checkbox">靜心結束淡出</label></div>`;audio.append(div);div.querySelector('[data-file]').onclick=async()=>{if(kind==='music'&&state.music.mode==='playlist'){const files=await meditation.chooseFiles('audio');if(files.length)set('music',{...state.music,files,file:files[0]})}else{const f=await meditation.chooseFile('audio');if(f)set(kind,{...state[kind],file:f,files:kind==='music'?[f]:state[kind].files})}};div.querySelector('[data-volume]').oninput=e=>set(kind,{...state[kind],volume:Number(e.target.value)});div.querySelector('[data-in]').onchange=e=>set(kind,{...state[kind],fadeIn:e.target.checked});div.querySelector('[data-out]').onchange=e=>set(kind,{...state[kind],fadeOut:e.target.checked});div.dataset.kind=kind}
 function paint(s){state=s;$('timer').textContent=s.remainingText;$('elapsed').textContent=s.elapsedText;$('status').textContent={ready:'準備完成',running:'靜心進行中',paused:'已暫停',finished:'靜心已完成'}[s.status];const isPreset=[3,5,7,10,15,20].includes(s.selectedMinutes);for(const button of document.querySelectorAll('.preset'))button.classList.toggle('active',Number(button.dataset.minutes)===s.selectedMinutes);$('custom').classList.toggle('active',!isPreset);if(!isPreset&&document.activeElement!==$('custom'))$('custom').value=s.selectedMinutes;for(const id of ['showClock','showText','showCountdown','alwaysOnTop','gradient','silent','musicEnabled'])$(id).checked=s[id];$('clock24').value=String(s.clock24);$('progressStyle').value=s.progressStyle;$('progressMode').value=s.progressMode||'fill';$('progressDirection').value=s.progressDirection||'forward';$('musicMode').value=s.music.mode||'single';$('text').value=s.text;$('background').value=s.background;$('background2').value=s.background2;for(const id of ['clockFont','textFont','countdownFont'])if([...$(id).options].some(o=>o.value===s[id]))$(id).value=s[id];for(const id of ['clockSize','textSize','countdownSize','progressSize']){$(id).value=s[id];$(id+'V').textContent=s[id]+(id==='progressSize'?'%':' pt')}for(const div of audio.children){const a=s[div.dataset.kind];div.querySelector('[data-volume]').value=a.volume;div.querySelector('[data-v]').textContent=a.volume+'%';div.querySelector('[data-in]').checked=a.fadeIn;div.querySelector('[data-out]').checked=a.fadeOut;const count=div.dataset.kind==='music'?(a.files?.length||(+!!a.file)):0;div.querySelector('[data-info]').textContent=div.dataset.kind==='music'?(a.mode==='playlist'?`播放清單：${count} 首（換曲不中斷）`:'單首循環（循環時不中斷）'):''}}
 const originalPaint=paint
-paint=s=>{originalPaint(s);$('toggleParticipant').textContent=s.participantVisible?'隱藏參與者畫面':'顯示參與者畫面';$('toggleParticipant').classList.toggle('active',s.participantVisible)}
+paint=s=>{originalPaint(s);paintBackgroundSlots(s);$('toggleParticipant').textContent=s.participantVisible?'隱藏參與者畫面':'顯示參與者畫面';$('toggleParticipant').classList.toggle('active',s.participantVisible)}
 function updateNow(){$('now').textContent=new Date().toLocaleTimeString('zh-TW',{hour12:false})}
 updateNow();setInterval(updateNow,500)
 meditation.onState(paint);meditation.getState().then(paint);meditation.getAddresses().then(addresses=>{const container=$('addresses');container.replaceChildren();for(const address of addresses){const url=`http://${address}:4747/`;const row=document.createElement('div');row.className='address-row';const label=document.createElement('span');label.textContent=`${address}:4747`;const button=document.createElement('button');button.textContent='開啟';button.onclick=()=>meditation.openBrowser(url);row.append(label,button);container.append(row)}})

@@ -3,6 +3,9 @@ const https = require('https')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { randomUUID } = require('node:crypto')
+const { Transform } = require('node:stream')
+const { pipeline } = require('node:stream/promises')
 
 const PORT = Number(process.env.PORT || 4747)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data')
@@ -26,6 +29,7 @@ const defaults = {
   progressPosition: { x: 50, y: 73 },
   progressStyle: 'ring', progressMode: 'fill', progressDirection: 'forward', progressSize: 25, progressStart: '#20d760', progressEnd: '#e4bd55',
   background: '#000000', background2: '#17241d', gradient: false, backgroundImage: '', backgroundVideo: '',
+  backgroundSlots: { video: ['', ''], image: ['', ''] },
   alwaysOnTop: false,
   silent: false, musicEnabled: false, musicMode: 'single',
   opening: { url: mediaUrl('磬聲.m4a'), volume: 30, fadeIn: true, fadeOut: true, duration: 8 },
@@ -59,9 +63,17 @@ function storeReminderDataUrl(value) {
   return `/media/reminder-image.png?v=${Date.now()}`
 }
 let state = structuredClone(defaults)
+let savedConfig
 // 這裡原本是空的 catch，設定載入失敗時會靜默退回預設值，事後完全查不出來
-try { state = deepMerge(state, JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))); console.log(`已載入設定 ${CONFIG_FILE}`) }
+try { savedConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); state = deepMerge(state, savedConfig); console.log(`已載入設定 ${CONFIG_FILE}`) }
 catch (error) { if (error.code !== 'ENOENT') console.error(`設定載入失敗，改用預設值：${error.message}`); else console.log('尚無設定檔，使用預設值') }
+for (const kind of ['video', 'image']) {
+  const key = kind === 'video' ? 'backgroundVideo' : 'backgroundImage'
+  // Import the current background only from configurations predating slots.
+  const slots = savedConfig?.backgroundSlots?.[kind]
+  if (!state.backgroundSlots || typeof state.backgroundSlots !== 'object') state.backgroundSlots = {}
+  state.backgroundSlots[kind] = Array.isArray(slots) ? [slots[0] || '', slots[1] || ''] : [state[key] || '', '']
+}
 let migratedReminderImage = false
 if (String(state.reminder.image.url || '').startsWith('data:image/png;base64,')) {
   try { state.reminder.image.url = storeReminderDataUrl(state.reminder.image.url); migratedReminderImage = true; console.log('已將 PNG 提醒圖片轉存為獨立檔案') }
@@ -135,13 +147,17 @@ function save() {
   copy.reminder.status='idle';copy.reminder.elapsed=0;copy.reminder.startedAt=null;copy.reminder.temporary.active=false;copy.reminder.temporary.startedAt=null;copy.reminder.marquee.active=false;copy.reminder.image.active=false;copy.reminder.image.startedAt=null
   const temp = `${CONFIG_FILE}.tmp`
   try { fs.writeFileSync(temp, JSON.stringify(copy, null, 2)); fs.renameSync(temp, CONFIG_FILE) }
-  catch (error) { console.error('儲存設定失敗：', error.message) }
+  catch (error) { console.error('儲存設定失敗：', error.message); return false }
+  return true
 }
 if (migratedReminderImage) save()
 let lastBroadcastAt = 0
+let lastTemporaryPhase = null
 function broadcast() {
   lastBroadcastAt = Date.now()
-  const data = `data: ${JSON.stringify(publicState())}\n\n`
+  const snapshot = publicState()
+  lastTemporaryPhase = snapshot.reminder.temporaryPhase
+  const data = `data: ${JSON.stringify(snapshot)}\n\n`
   for (const res of sseClients) { try { res.write(data) } catch { sseClients.delete(res) } }
 }
 function updateRemaining() {
@@ -155,7 +171,9 @@ function timeDrivenActive() {
   const r = state.reminder, now = Date.now()
   if (state.status === 'running') return true
   if (reminderManual) return true
-  if (r.temporary.active || r.image.active) return true
+  const t = r.temporary
+  if (t.active && (t.autoHide || t.stoppingAt != null || lastTemporaryPhase === 'fadeIn')) return true
+  if (r.image.active && r.image.autoHide) return true
   if (r.marquee.active && r.marquee.stoppingAt) return true
   if (Object.values(reminderPreviewUntil).some(until => now < until + 400)) return true
   return r.boundToMeditation ? false : r.status === 'running'
@@ -279,6 +297,45 @@ async function reconcileAudio(previous) {
 setInterval(monitorWiiM, 1500); startTick(); if(process.env.AUTO_DISCOVER!=='false')setTimeout(()=>discoverWiiM(), 500)
 
 function json(res, value, status=200) { const body=JSON.stringify(value); res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Access-Control-Allow-Origin':'*'}); res.end(body) }
+const backgroundTypes = { video: ['.mp4', '.webm', '.mov', '.m4v'], image: ['.jpg', '.jpeg', '.png', '.webp'] }
+async function storeBackground(req, kind, slot) {
+  const ext = path.extname(decodeURIComponent(req.headers['x-file-name'] || '')).toLowerCase()
+  const limit = kind === 'video' ? 2 * 1024 ** 3 : 30 * 1024 ** 2
+  if (!backgroundTypes[kind].includes(ext)) throw Error('不支援這種背景檔案格式')
+  if (Number(req.headers['content-length']) > limit) throw Error('背景檔案太大')
+  const name = `background-${kind}-${slot + 1}-${randomUUID()}`
+  const temp = path.join(MEDIA_DIR, name + '.tmp')
+  let bytes = 0
+  try {
+    // Keep the response connection open if the incoming stream exceeds the limit.
+    const limiter = new Transform({ transform(chunk, encoding, done) {
+      bytes += chunk.length
+      if (bytes > limit) done(Error('背景檔案太大'))
+      else done(null, chunk)
+    } })
+    const abort = error => limiter.destroy(error)
+    const aborted = () => abort(Error('上傳連線已中斷'))
+    req.once('error', abort)
+    req.once('aborted', aborted)
+    try { await pipeline(req.pipe(limiter), fs.createWriteStream(temp, { flags: 'wx' })) }
+    finally { req.unpipe(limiter); req.off('error', abort); req.off('aborted', aborted) }
+    if (!bytes) throw Error('背景檔案是空的')
+    if (kind === 'image') {
+      const file = await fs.promises.open(temp, 'r')
+      const head = Buffer.alloc(12)
+      try { await file.read(head, 0, head.length, 0) } finally { await file.close() }
+      const valid = ext === '.png' ? head.subarray(0, 8).toString('hex') === '89504e470d0a1a0a'
+        : ext === '.webp' ? head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP'
+        : head.subarray(0, 3).toString('hex') === 'ffd8ff'
+      if (!valid) throw Error('圖片內容與副檔名不符')
+    }
+    await fs.promises.rename(temp, path.join(MEDIA_DIR, name + ext))
+    return '/media/' + name + ext
+  } catch (error) {
+    await fs.promises.rm(temp, { force: true }).catch(() => {})
+    throw error
+  }
+}
 function readJson(req) { return new Promise((resolve,reject)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{try{resolve(body?JSON.parse(body):{})}catch(e){reject(e)}});req.on('error',reject)}) }
 function uploadBackgroundVideo(req) {
   return new Promise((resolve, reject) => {
@@ -342,7 +399,8 @@ function serveMedia(req, res, pathname) {
   try { stats = fs.statSync(file) } catch { return false }
   if (!stats.isFile()) return false
   const ext = path.extname(file).toLowerCase()
-  const type = { '.mp4':'video/mp4', '.m4v':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime', '.png':'image/png' }[ext] || 'application/octet-stream'
+  if (ext === '.tmp') return false
+  const type = { '.mp4':'video/mp4', '.m4v':'video/mp4', '.webm':'video/webm', '.mov':'video/quicktime', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp' }[ext] || 'application/octet-stream'
   const range = req.headers.range
   if (!range) {
     res.writeHead(200, { 'Content-Type': type, 'Content-Length': stats.size, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' })
@@ -377,6 +435,7 @@ function serveFile(req,res,pathname) {
 async function api(req,res,url) {
   try {
     const p=url.pathname
+    const slotRoute = /^\/api\/background-slots\/(video|image)\/([12])(\/select)?$/.exec(p)
     if(p==='/api/health') return json(res,{ok:true,version:VERSION,status:state.status,uptime:Math.round(process.uptime()),clients:sseClients.size,wiim:state.wiim.status})
     if(p==='/api/state') return json(res,publicState())
     if(p==='/api/fonts') return json(res,[{value:'system-ui',label:'系統預設字體'},{value:'Arial',label:'Arial'},{value:'Helvetica',label:'Helvetica'},{value:'Microsoft JhengHei',label:'微軟正黑體'},{value:'Noto Sans TC',label:'Noto Sans TC'},{value:'PingFang TC',label:'蘋方－繁'}])
@@ -387,10 +446,32 @@ async function api(req,res,url) {
     // 瀏覽器做不到作業系統層級的視窗置頂。這支保持存在只是為了不讓 Companion 收到 404
     // 而把整條連線標成失敗；狀態固定是 false，按鈕不會亮起來謊稱畫面已置頂。
     else if(p==='/api/toggle-always-on-top'){state.alwaysOnTop=false}
+    else if(slotRoute && req.method==='POST'){
+      const [, kind, index, selecting] = slotRoute
+      const slot = Number(index) - 1, slots = state.backgroundSlots[kind]
+      if(selecting){
+        if(!slots[slot]) return json(res,{error:'這個儲存槽尚未上傳'},404)
+        state.backgroundVideo = kind === 'video' ? slots[slot] : ''
+        state.backgroundImage = kind === 'image' ? slots[slot] : ''
+      }else{
+        const url = await storeBackground(req,kind,slot), previous = slots[slot]
+        slots[slot] = url
+        for(const key of ['backgroundVideo','backgroundImage']) if(previous && state[key] === previous) state[key] = url
+        // Only collect files owned by this slot; leave imported backgrounds in place.
+        if(!save()) return json(res,{error:'無法儲存背景設定'},500)
+        if(previous?.startsWith(`/media/background-${kind}-${index}-`) && !Object.values(state.backgroundSlots).flat().includes(previous))
+          void fs.promises.rm(path.join(MEDIA_DIR,path.basename(previous)),{force:true}).catch(console.error)
+        broadcast()
+        return json(res,publicState())
+      }
+      if(!save()) return json(res,{error:'無法儲存背景設定'},500)
+      broadcast()
+    }
+    else if(p==='/api/background-slots/clear'&&req.method==='POST'){state.backgroundVideo='';state.backgroundImage='';save();broadcast()}
     else if(p==='/api/background-video'&&req.method==='POST'){state.backgroundVideo=await uploadBackgroundVideo(req);state.backgroundImage='';save();broadcast()}
-    else if(p==='/api/background-video'&&req.method==='DELETE'){for(const name of fs.readdirSync(MEDIA_DIR))if(/^background-video\./.test(name))fs.rmSync(path.join(MEDIA_DIR,name),{force:true});state.backgroundVideo='';save();broadcast()}
+    else if(p==='/api/background-video'&&req.method==='DELETE'){state.backgroundVideo='';save();broadcast()}
     else if(p==='/api/config'&&req.method==='POST'){const previous=structuredClone(state);deepMerge(state,await readJson(req));save();broadcast();await reconcileAudio(previous);if(state.wiim.host!==previous.wiim.host&&state.wiim.host)discoverWiiM();}
-    else if(p==='/api/reminder/config'&&req.method==='POST'){const body=await readJson(req);if(body.image?.url)body.image.url=storeReminderDataUrl(body.image.url);deepMerge(state.reminder,body);save();broadcast()}
+    else if((p==='/api/reminder/config'||p==='/api/reminder/save')&&req.method==='POST'){const body=await readJson(req);if(body.image?.url)body.image.url=storeReminderDataUrl(body.image.url);deepMerge(state.reminder,body);if(!save())return json(res,{error:'無法儲存提醒設定'},500);broadcast()}
     else if(p==='/api/reminder/image-file'&&req.method==='POST'){state.reminder.image.url=await uploadReminderImage(req);save();broadcast()}
     else if(p==='/api/reminder/preview'){const body=req.method==='POST'?await readJson(req):{};if(body.mode in reminderPreviewUntil)reminderPreviewUntil[body.mode]=Date.now()+900;broadcast()}
     else if(p==='/api/reminder/start'){const r=state.reminder;if(r.status==='paused'){r.status='running';r.startedAt=Date.now()}else{r.status='running';r.elapsed=0;r.startedAt=Date.now()}broadcast()}
@@ -398,11 +479,11 @@ async function api(req,res,url) {
     else if(p==='/api/reminder/reset'){const r=state.reminder;r.status='idle';r.elapsed=0;r.startedAt=null;reminderManual=null;broadcast()}
     else if(p==='/api/reminder/trigger'){const now=Date.now(),r=state.reminder;reminderTimedHiddenUntil=0;reminderManual={effectAt:now+r.fadeInSeconds*1000,hideAt:now+(r.fadeInSeconds+r.durationSeconds+r.fadeOutSeconds)*1000};if(r.manualResetsInterval&&!r.boundToMeditation){r.elapsed=0;r.startedAt=now}broadcast()}
     else if(p==='/api/reminder/timed/hide'){const r=state.reminder;reminderManual=null;reminderTimedHiddenUntil=Date.now()+(r.fadeInSeconds+r.durationSeconds+r.fadeOutSeconds)*1000;broadcast()}
-    else if(p==='/api/reminder/temp/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.temporary,body);state.reminder.temporary.active=true;state.reminder.temporary.startedAt=Date.now();state.reminder.temporary.stoppingAt=null;broadcast()}
+    else if(p==='/api/reminder/temp/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.temporary,body);state.reminder.temporary.active=true;state.reminder.temporary.startedAt=Date.now();state.reminder.temporary.stoppingAt=null;if(Object.keys(body).length)save();broadcast()}
     else if(p==='/api/reminder/temp/hide'){const t=state.reminder.temporary;if(t.active&&t.fadeOut)t.stoppingAt=Date.now();else t.active=false;broadcast()}
     else if(p==='/api/reminder/marquee/show'){const body=req.method==='POST'?await readJson(req):{};deepMerge(state.reminder.marquee,body);state.reminder.marquee.active=true;state.reminder.marquee.startedAt=Date.now();state.reminder.marquee.stoppingAt=null;save();broadcast()}
     else if(p==='/api/reminder/marquee/hide'){const m=state.reminder.marquee;if(m.active&&m.fadeOut)m.stoppingAt=Date.now();else m.active=false;save();broadcast()}
-    else if(p==='/api/reminder/image/show'){const body=req.method==='POST'?await readJson(req):{};if(body.url)body.url=storeReminderDataUrl(body.url);deepMerge(state.reminder.image,body);state.reminder.image.active=true;state.reminder.image.startedAt=Date.now();broadcast()}
+    else if(p==='/api/reminder/image/show'){const body=req.method==='POST'?await readJson(req):{};if(body.url)body.url=storeReminderDataUrl(body.url);deepMerge(state.reminder.image,body);state.reminder.image.active=true;state.reminder.image.startedAt=Date.now();if(Object.keys(body).length)save();broadcast()}
     else if(p==='/api/reminder/image/hide'){state.reminder.image.active=false;broadcast()}
     else if(p==='/api/reminder/hide-all'){reminderManual=null;state.reminder.temporary.active=false;state.reminder.marquee.active=false;state.reminder.image.active=false;broadcast()}
     else if(p==='/api/wiim/discover'){await discoverWiiM(true)} else if(p==='/api/wiim/test'){await wiimCommand('getPlayerStatus')}

@@ -1,5 +1,16 @@
 import { InstanceBase, InstanceStatus, combineRgb } from '@companion-module/base'
 
+const backgrounds = { 'video/1': '影片 1', 'video/2': '影片 2', 'image/1': '圖片 1', 'image/2': '圖片 2', clear: '背景色' }
+const backgroundChoices = Object.entries(backgrounds).map(([id, label]) => ({ id, label }))
+function activeBackground(state) {
+  if (!state.backgroundSlots) return undefined
+  const kind = state.backgroundVideo ? 'video' : 'image'
+  const url = state.backgroundVideo || state.backgroundImage
+  if (!url) return 'clear'
+  const slot = state.backgroundSlots[kind]?.indexOf(url)
+  return slot >= 0 ? `${kind}/${slot + 1}` : undefined
+}
+
 const SELECTED_DURATION_BORDER = 'iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAYAAABV7bNHAAAAq0lEQVR4nO3QwQmAQBAEwc0/QcM5I5D2dR5YDfMfatY1y543Xx84fYAAAdoPND8NUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFgCJAEaAIUAQoAhQBigBFr4EMECBAgM7YDdIh07+6k3VpAAAAAElFTkSuQmCC'
 
 export class MeditationHostInstance extends InstanceBase {
@@ -55,6 +66,7 @@ export class MeditationHostInstance extends InstanceBase {
   }
   updateState(state) {
     this.state = state
+    this.checkFeedbacks('background_selected')
     const r=state.reminder||{}
     this.setVariableValues({ remaining: state.remainingText, remaining_seconds: state.remaining, state: state.state, selected_minutes: state.selectedMinutes, show_countdown: state.showCountdown ? '顯示':'隱藏', show_clock: state.showClock ? '顯示':'隱藏', show_text: state.showText ? '顯示':'隱藏', always_on_top: state.alwaysOnTop ? '啟用':'取消', reminder_elapsed:r.elapsedText||'00:00',reminder_next:r.nextText||'--:--',reminder_status:r.status||'idle',reminder_interval:r.intervalMinutes||0,reminder_timed_enabled:r.timedEnabled?'啟用':'停用',reminder_temporary_enabled:r.temporaryEnabled?'啟用':'停用',reminder_marquee_enabled:r.marqueeEnabled?'啟用':'停用',reminder_image_enabled:r.imageEnabled?'啟用':'停用' })
     this.checkFeedbacks('running', 'paused', 'show_countdown', 'show_clock', 'show_text', 'always_on_top', 'selected_duration','reminder_running','reminder_visible','reminder_interval','temporary_visible','marquee_visible','image_visible','reminder_timed_enabled','reminder_temporary_enabled','reminder_marquee_enabled','reminder_image_enabled')
@@ -62,6 +74,15 @@ export class MeditationHostInstance extends InstanceBase {
 
   actions() {
     return {
+      background_select: {
+        name: '背景：切換儲存槽／背景色',
+        options: [{ type: 'dropdown', id: 'target', label: '背景', default: 'video/1', choices: backgroundChoices }],
+        callback: ({ options }) => {
+          if (!Object.hasOwn(backgrounds, options.target)) return
+          return this.post('/api/background-slots/' + (options.target === 'clear' ? 'clear' : options.target + '/select'), {})
+        },
+      },
+      reminder_save: { name: '提醒：儲存全部設定', options: [], callback: () => this.post('/api/reminder/save', {}) },
       start: { name: '開始／繼續', options: [], callback: () => this.command('/api/start') },
       pause: { name: '暫停', options: [], callback: () => this.command('/api/pause') },
       toggle: { name: '暫停／繼續切換', options: [], callback: () => this.command('/api/toggle') },
@@ -102,6 +123,12 @@ export class MeditationHostInstance extends InstanceBase {
   }
   feedbacks() {
     return {
+      background_selected: {
+        name: '背景：目前正在使用', type: 'boolean',
+        defaultStyle: { bgcolor: combineRgb(255, 212, 0), color: combineRgb(0, 0, 0) },
+        options: [{ type: 'dropdown', id: 'target', label: '背景', default: 'video/1', choices: backgroundChoices }],
+        callback: ({ options }) => activeBackground(this.state) === options.target,
+      },
       running: { name: '正在進行', type: 'boolean', defaultStyle: { bgcolor: combineRgb(0, 140, 65), color: combineRgb(255,255,255) }, options: [], callback: () => this.state.state === 'running' },
       paused: { name: '已暫停', type: 'boolean', defaultStyle: { bgcolor: combineRgb(215, 140, 0), color: combineRgb(0,0,0) }, options: [], callback: () => this.state.state === 'paused' },
       show_countdown: { name: '倒數正在顯示', type: 'boolean', defaultStyle: { bgcolor: '#cc2222', color: '#ffffff' }, options: [], callback: () => this.state.showCountdown === true },
@@ -147,6 +174,12 @@ export class MeditationHostInstance extends InstanceBase {
     presets.temp_quiet={...button('臨時：保持安靜','保持\n安靜','temporary_show',{text:'請保持安靜',seconds:8}),category:'時間提醒',feedbacks:[{feedbackId:'temporary_visible',options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]};presets.hide_all={...button('隱藏全部提醒','隱藏\n提醒','reminder_hide_all'),category:'時間提醒'}
     for(const [key,label,action,feedback] of [['timed','時間提醒','reminder_toggle_timed','reminder_timed_enabled'],['marquee','跑馬燈','reminder_toggle_marquee','reminder_marquee_enabled'],['image','圖片提醒','reminder_toggle_image','reminder_image_enabled'],['temporary','臨時提醒','reminder_toggle_temporary','reminder_temporary_enabled']])presets[`reminder_enable_${key}`]={...button(`${label} 啟用／關閉`,`${label}\n啟用／關閉`,action),category:'時間提醒',feedbacks:[{feedbackId:feedback,options:{},style:{bgcolor:'#ffd400',color:'#000000'}}]}
     for(const [key,label,action,feedback,options] of [['marquee','跑馬燈','marquee_toggle','marquee_visible',{text:'活動即將開始',direction:'rtl'}],['temporary','臨時提醒','temporary_toggle','temporary_visible',{}],['image','圖片提醒','image_toggle','image_visible',{}],['timed','時間提醒','reminder_toggle_visible','reminder_visible',{}]])presets[`reminder_show_${key}`]={...button(`${label} 顯示／隱藏`,`${label}\n顯示／隱藏`,action,options),category:'時間提醒',feedbacks:[{feedbackId:feedback,options:{},style:{bgcolor:'#cc2222',color:'#ffffff'}}]}
+    for (const { id: target, label } of backgroundChoices) presets['background_' + target.replace('/', '_')] = {
+      ...button(label, label, 'background_select', { target }),
+      category: '背景',
+      feedbacks: [{ feedbackId: 'background_selected', options: { target }, style: { bgcolor: '#ffd400', color: '#000000' } }],
+    }
+    presets.reminder_save = { ...button('儲存全部提醒設定', '儲存\n提醒', 'reminder_save'), category: '時間提醒' }
     return presets
   }
 }

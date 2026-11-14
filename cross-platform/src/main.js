@@ -5,6 +5,7 @@ const path = require('path')
 const { execFile } = require('child_process')
 const { pathToFileURL } = require('url')
 const fs = require('fs')
+const { randomUUID } = require('node:crypto')
 const { autoUpdater } = require('electron-updater')
 
 let hostWindow, participantWindow, reminderWindow, temporaryWindow, marqueeWindow, imageWindow, reminderControlWindow, updateWindow, timer, reminderTimer, apiServer, tray
@@ -24,7 +25,8 @@ const state = {
   showClock: false, clock24: false, clockFont: '系統預設字體', clockSize: 50, clockPosition: { x: .5, y: .86 },
   showCountdown: false, countdownFont: '系統預設字體', countdownSize: 60, countdownPosition: { x: .5, y: .25 },
   progressStyle: 'ring', progressMode: 'fill', progressDirection: 'forward', progressSize: 25, progressStart: '#32d05b', progressEnd: '#e3c767',
-  background: '#000000', background2: '#123326', gradient: false, backgroundImage: '',
+  background: '#000000', background2: '#123326', gradient: false, backgroundImage: '', backgroundVideo: '',
+  backgroundSlots: { video: ['', ''], image: ['', ''] },
   participantVisible: true, alwaysOnTop: false, silent: false, musicEnabled: false,
   opening: { file: '', volume: 30, fadeIn: true, fadeOut: true },
   music: { file: '', files: [], mode: 'single', volume: 30, fadeIn: true, fadeOut: true },
@@ -40,7 +42,7 @@ const state = {
     manualResetsInterval: false,
     temporary: { active: false, text: '請保持安靜', autoHide: true, durationSeconds: 8, startedAt: null, stoppingAt: null, position: 'center', fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 72, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
     marquee: { active: false, text: '活動即將開始', layout: 'horizontal', direction: 'rtl', speed: 80, position: 'bottom', background: '#000000', opacity: .55, startedAt: null, stoppingAt: null, fadeIn: true, fadeInSeconds: 1, fadeOut: true, fadeOutSeconds: 1, style: { font: 'system-ui', size: 46, color: '#ffffff', stroke: false, strokeWidth: 2, strokeColor: '#000000', glow: false, glowSize: 12, glowColor: '#ffffff' } },
-    image: { active: false, url: '', size: 30, durationSeconds: 10, startedAt: null, effect: 'fade' },
+    image: { active: false, url: '', size: 30, autoHide: true, durationSeconds: 10, startedAt: null, effect: 'fade' },
   },
 }
 let dragSnapshot = null
@@ -57,11 +59,12 @@ const defaultSettingKeys = [
   'showClock', 'clock24', 'clockFont', 'clockSize', 'clockPosition',
   'showCountdown', 'countdownFont', 'countdownSize', 'countdownPosition',
   'progressStyle', 'progressMode', 'progressDirection', 'progressSize', 'progressStart', 'progressEnd',
-  'background', 'background2', 'gradient', 'backgroundImage', 'alwaysOnTop', 'silent', 'musicEnabled',
+  'background', 'background2', 'gradient', 'backgroundImage', 'backgroundVideo', 'backgroundSlots', 'alwaysOnTop', 'silent', 'musicEnabled',
   'opening', 'music', 'closing', 'reminder',
 ]
 function mergeSettings(target, source) {
   for (const [key, value] of Object.entries(source || {})) {
+    if (['__proto__', 'constructor', 'prototype'].includes(key)) continue
     if (value && typeof value === 'object' && !Array.isArray(value)) mergeSettings(target[key] ||= {}, value)
     else target[key] = value
   }
@@ -78,14 +81,39 @@ function loadDefaultSettings() {
   try {
     const saved = JSON.parse(fs.readFileSync(defaultSettingsPath(), 'utf8'))
     if (saved && typeof saved === 'object' && !Array.isArray(saved)) mergeSettings(state, saved)
+    if (!saved?.backgroundSlots && state.backgroundImage) state.backgroundSlots.image[0] = state.backgroundImage
   } catch (error) {
     if (error.code !== 'ENOENT') console.warn('Unable to load default settings:', error.message)
   }
   state.status = 'ready'; state.remaining = Math.max(1, Number(state.selectedMinutes) || 10) * 60
 }
 function saveCurrentAsDefault() {
-  fs.writeFileSync(defaultSettingsPath(), JSON.stringify(defaultSettingsSnapshot(), null, 2))
+  writeDefaults(defaultSettingsSnapshot())
   return { ok: true, message: '目前設定已儲存，下次開啟會自動套用。' }
+}
+function writeDefaults(settings) {
+  const target = defaultSettingsPath()
+  fs.writeFileSync(target + '.tmp', JSON.stringify(settings, null, 2))
+  fs.renameSync(target + '.tmp', target)
+}
+function saveDefaultFields(fields) {
+  let existing = {}
+  try { existing = JSON.parse(fs.readFileSync(defaultSettingsPath(), 'utf8')) || {} }
+  catch (error) { if (error.code !== 'ENOENT') throw error }
+  const snapshot = defaultSettingsSnapshot()
+  writeDefaults({ ...existing, ...Object.fromEntries(fields.map(key => [key, snapshot[key]])) })
+}
+const backgroundFields = ['backgroundImage', 'backgroundVideo', 'backgroundSlots']
+function selectBackground(kind, slot) {
+  const url = kind ? state.backgroundSlots[kind][slot] : ''
+  if (kind && !url) return false
+  const previous = [state.backgroundVideo, state.backgroundImage]
+  state.backgroundVideo = kind === 'video' ? url : ''
+  state.backgroundImage = kind === 'image' ? url : ''
+  try { saveDefaultFields(backgroundFields) }
+  catch (error) { [state.backgroundVideo, state.backgroundImage] = previous; throw error }
+  broadcast()
+  return true
 }
 function readUpdatePreferences() {
   try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')) }
@@ -265,7 +293,7 @@ function reminderPresentation(elapsed) {
     else marqueePhase = 'effect'
     if (!marqueePhase) { mq.active=false; mq.stoppingAt=null }
   }
-  const imageVisible = r.image.active && now - r.image.startedAt < r.image.durationSeconds * 1000
+  const imageVisible = r.image.active && (!r.image.autoHide || now - r.image.startedAt < r.image.durationSeconds * 1000)
   if (r.image.active && !imageVisible) r.image.active = false
   const nextIn = interval - (elapsed % interval || 0)
   return { elapsedText: formatTime(elapsed), timeText: reminderTimeText(elapsed), nextIn, nextText: formatTime(nextIn), timed, temporaryVisible, temporaryPhase, marqueePhase, imageVisible }
@@ -586,9 +614,21 @@ function startAPI() {
   const remote = require('fs').readFileSync(path.join(__dirname, 'remote.html'))
   const staticFiles = { '/reminder': ['reminder.html','text/html; charset=utf-8'], '/reminder.css':['reminder.css','text/css'], '/reminder.js':['reminder.js','text/javascript'], '/reminder-control':['reminder-control.html','text/html; charset=utf-8'], '/reminder-control.js':['reminder-control.js','text/javascript'], '/common.css':['common.css','text/css'] }
   const readBody = req => new Promise(resolve => { let data=''; req.on('data', c => data += c); req.on('end', () => { try { resolve(JSON.parse(data || '{}')) } catch { resolve({}) } }) })
-  const merge = (target, source) => { for (const [key,value] of Object.entries(source || {})) value && typeof value === 'object' && !Array.isArray(value) ? merge(target[key] ||= {}, value) : target[key] = value }
+  const merge = mergeSettings
   apiServer = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost')
+    const backgroundRoute = /^\/api\/background-slots\/(video|image)\/([12])\/select$/.exec(url.pathname)
+    if (req.method === 'POST' && (backgroundRoute || ['/api/background-slots/clear', '/api/reminder/save'].includes(url.pathname))) {
+      const send = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)) }
+      try {
+        if (url.pathname === '/api/reminder/save') {
+          merge(state.reminder, await readBody(req))
+          saveDefaultFields(['reminder'])
+          broadcast()
+        } else if (!selectBackground(backgroundRoute?.[1], Number(backgroundRoute?.[2]) - 1)) return send(404, { error: '這個儲存槽尚未上傳' })
+        return send(200, publicState())
+      } catch (error) { return send(500, { error: error.message }) }
+    }
     if (url.pathname === '/' || url.pathname === '/remote') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(remote) }
     if (staticFiles[url.pathname]) { const [file,type]=staticFiles[url.pathname]; res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'}); return require('fs').createReadStream(path.join(__dirname,file)).pipe(res) }
     if (url.pathname === '/api/fonts') { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(await listLocalFontRecords())) }
@@ -639,6 +679,37 @@ ipcMain.handle('browser:open', (_event, url) => {
   return shell.openExternal(parsed.href)
 })
 ipcMain.handle('command', (_e, name, value) => execute(name, value))
+ipcMain.handle('background:select', (_e, kind, slot) => {
+  if (kind !== null && (!['video', 'image'].includes(kind) || ![0, 1].includes(slot))) throw Error('無效的儲存槽')
+  return selectBackground(kind, slot)
+})
+ipcMain.handle('background:store', async (_e, kind, slot) => {
+  if (!['video', 'image'].includes(kind) || ![0, 1].includes(slot)) throw Error('無效的儲存槽')
+  const extensions = kind === 'video' ? ['mp4', 'webm', 'mov', 'm4v'] : ['png', 'jpg', 'jpeg', 'webp', 'bmp']
+  const result = await dialog.showOpenDialog(hostWindow, { properties: ['openFile'], filters: [{ name: kind === 'video' ? '影片' : '圖片', extensions }] })
+  if (result.canceled) return false
+  const source = result.filePaths[0], ext = path.extname(source).toLowerCase()
+  if (!extensions.includes(ext.slice(1))) throw Error('不支援的背景檔案格式')
+  const dir = path.join(app.getPath('userData'), 'background-media')
+  await fs.promises.mkdir(dir, { recursive: true })
+  const target = path.join(dir, `${kind}-${slot}-${randomUUID()}${ext}`)
+  await fs.promises.copyFile(source, target)
+  const slots = state.backgroundSlots[kind], previous = slots[slot]
+  const key = kind === 'video' ? 'backgroundVideo' : 'backgroundImage'
+  const previousActive = state[key]
+  slots[slot] = pathToFileURL(target).href
+  if (previous && previous === previousActive) state[key] = slots[slot]
+  try { saveDefaultFields(backgroundFields) }
+  catch (error) { slots[slot] = previous; state[key] = previousActive; await fs.promises.unlink(target).catch(() => {}); throw error }
+  if (previous && !Object.values(state.backgroundSlots).flat().includes(previous)) {
+    try {
+      const old = require('node:url').fileURLToPath(previous)
+      if (path.dirname(old) === dir && path.basename(old).startsWith(`${kind}-${slot}-`)) await fs.promises.unlink(old).catch(() => {})
+    } catch { /* Imported files are not owned by ZenTime. */ }
+  }
+  broadcast()
+  return true
+})
 ipcMain.handle('file:choose', async (_e, kind) => {
   const filters = kind === 'image' ? [{ name: '圖片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }] : [{ name: '音訊', extensions: ['mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac'] }]
   const r = await dialog.showOpenDialog(hostWindow, { properties: ['openFile'], filters }); return r.canceled ? '' : pathToFileURL(r.filePaths[0]).href

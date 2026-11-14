@@ -18,7 +18,10 @@
   <h3>背景</h3>
   <div class="row"><label>背景一</label><input id="background" type="color"><label>背景二</label><input id="background2" type="color"><label><input id="gradient" type="checkbox"> 漸層</label></div>
   <div class="field"><label>背景圖片網址</label><input id="backgroundImage" placeholder="https://..."></div>
-  <div class="field"><label>背景影片（MP4／WebM／MOV，靜音循環播放）</label><input id="backgroundVideoFile" type="file" accept="video/mp4,video/webm,video/quicktime"><div class="row responsive"><button id="uploadBackgroundVideo">上傳並使用影片</button><button id="removeBackgroundVideo" class="danger">移除背景影片</button><span id="backgroundVideoStatus" class="muted"></span></div></div>
+  <h3>背景儲存槽</h3>
+  <p class="muted">上傳後點縮圖切換。影片會在參與者畫面靜音循環播放。</p>
+  <div id="backgroundSlots" class="grid grid2"></div>
+  <button id="clearBackground" type="button">只顯示背景色</button>
   <div class="grid grid2"><div class="field"><label>進度樣式</label><select id="progressStyle"><option value="ring">圓環</option><option value="line">直線</option></select></div><div class="field"><label>顯示模式</label><select id="progressMode"><option value="fill">由空白慢慢填滿</option><option value="drain">由滿格慢慢減少</option></select></div><div class="field"><label>方向</label><select id="progressDirection"><option value="forward">順時鐘／左到右</option><option value="reverse">逆時鐘／右到左</option></select></div><div class="field"><label>圓環／直線比例</label><input id="progressSize" type="number" min="8" max="50"></div></div>
   <button id="saveVisual" class="primary">儲存畫面設定</button>
 </section>

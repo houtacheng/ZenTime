@@ -11,6 +11,8 @@ let lastContentSize = ''
 let latestMarquee = null
 let lastMarqueeMotion = ''
 let lastMarqueeStyle = ''
+let lastPaint = ''
+const textStyles = new WeakMap()
 function reportContentSize(payload) {
   const signature = JSON.stringify(payload)
   if (signature === lastContentSize) return
@@ -51,6 +53,9 @@ function shadow(style) {
   return layers.join(',') || 'none'
 }
 function styleText(element, style) {
+  const signature = JSON.stringify(style)
+  if (textStyles.get(element) === signature) return
+  textStyles.set(element, signature)
   element.style.fontFamily = style.font === '系統預設字體' ? 'system-ui' : `"${style.font}",system-ui`
   element.style.fontSize = `${style.size}px`
   element.style.color = style.color
@@ -69,6 +74,15 @@ function paint(s) {
   const controlPreview = !!s.reminderPreview?.[mode]
   $('stage').classList.toggle('control-preview', controlPreview)
   const fullRed = mode === 'timed' && r.timed?.effect === 'red'
+  const content = {
+    timed: [r.timed, r.text, r.showTime && !r.timed ? r.timeText : null, r.showTime, r.sameLine, r.gap, r.position, r.textStyle, r.timeStyle, r.fadeInSeconds, r.fadeOutSeconds, r.overlayColor, r.overlayOpacity],
+    temporary: [r.temporary, r.temporaryPhase, r.temporaryVisible],
+    marquee: [r.marquee, r.marqueePhase],
+    image: [r.image, r.imageVisible],
+  }[mode]
+  const signature = JSON.stringify([enabled, controlPreview, content])
+  if (signature === lastPaint) return
+  lastPaint = signature
   $('stage').classList.toggle('fullscreen-red', fullRed)
   $('stage').style.backgroundColor = fullRed ? colorAlpha(r.overlayColor, r.overlayOpacity) : ''
   if (mode === 'timed') {
@@ -107,11 +121,13 @@ function paint(s) {
 
   if (mode === 'temporary') {
   const temporary = $('temporary')
-  temporary.textContent = r.temporary.text
-  temporary.className = `temporary ${r.temporary.position} ${embedded ? 'positioned' : ''}`
+  if (temporary.textContent !== r.temporary.text) temporary.textContent = r.temporary.text
+  const classes = ['temporary', r.temporary.position]
+  if (embedded) classes.push('positioned')
+  if (r.temporaryPhase) classes.push('active', r.temporaryPhase)
+  if (!r.temporaryVisible) classes.push('preview')
+  if (temporary.className !== classes.join(' ')) temporary.className = classes.join(' ')
   position(temporary, embedded ? r.temporary.screenPosition : null)
-  if (mode === 'temporary' && r.temporaryPhase) temporary.classList.add('active', r.temporaryPhase)
-  temporary.classList.toggle('preview', mode === 'temporary' && !r.temporaryVisible)
   temporary.style.setProperty('--fade-in', `${r.temporary.fadeInSeconds}s`)
   temporary.style.setProperty('--fade-out', `${r.temporary.fadeOutSeconds}s`)
   styleText(temporary, r.temporary.style)
@@ -152,7 +168,9 @@ function paint(s) {
 
   if (mode === 'image') {
   const image = $('image')
-  if (image.src !== (r.image.url || '')) image.src = r.image.url || ''
+  if (r.image.url) {
+    if (image.getAttribute('src') !== r.image.url) image.setAttribute('src', r.image.url)
+  } else if (image.hasAttribute('src')) image.removeAttribute('src')
   const pulseScale = r.image.effect === 'pulse' ? 1 / 1.1 : 1
   image.style.width = embedded ? `${pulseScale * r.image.size}vw` : `${pulseScale * 100}%`
   image.style.height = embedded ? `${pulseScale * r.image.size}vh` : `${pulseScale * 100}%`
